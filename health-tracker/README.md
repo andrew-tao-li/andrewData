@@ -2,66 +2,117 @@
 
 基于 Claude AI 的智能健康数据追踪系统
 
-## 功能特点
+> 💡 **跨平台支持**: macOS、Windows、Linux 完全兼容
+
+## ✨ 功能特点
 
 - 📝 **自动解析 Obsidian 笔记** - 支持自然语言描述和图片截图
 - 🧠 **Claude AI 智能提取** - 理解上下文，提取结构化数据
+- 📸 **图片智能识别** - 自动识别体重秤、健身 APP 截图
 - 💾 **本地 SQLite 存储** - 快速查询，离线可用
 - ☁️ **Google Sheets 云同步** - 跨设备访问，数据备份
 - 📊 **智能分析建议** - Claude 生成个性化健康洞察
+- 💬 **智能问答** - 随时询问健康数据相关问题
+- 🖥️ **跨平台** - macOS、Windows、Linux 全支持
 
-## 系统架构
+## 🏗️ 系统架构
 
 ```
-Obsidian笔记 → Python解析器 → Claude提取 → 本地SQLite → Google Sheets
-                                    ↓
-                               分析&建议生成
+Obsidian 笔记 (文本 + 图片)
+    ↓
+Python 解析器
+    ↓
+Claude AI 提取 → 理解上下文、识别图片、生成洞察
+    ↓
+本地 SQLite (快速查询、离线可用)
+    ↓
+Google Sheets (云端备份、跨设备访问)
 ```
 
-## 快速开始
+## 🚀 快速开始
 
-### 1. 安装依赖
+### 一键安装
+
+#### macOS / Linux
 
 ```bash
-pip install -r requirements.txt
+# 1. 下载项目
+git clone <repo-url>
+cd health-tracker
+
+# 2. 运行安装脚本
+chmod +x install.sh
+./install.sh
+
+# 3. 编辑配置
+nano config/config.json
+# 填写 Claude API Key 和 Obsidian Vault 路径
 ```
 
-### 2. 配置
+#### Windows
 
-复制配置文件并填写必要信息：
+```cmd
+# 1. 下载项目
+git clone <repo-url>
+cd health-tracker
 
-```bash
-cp config/config.example.json config/config.json
+# 2. 运行安装脚本（双击）
+install.bat
+
+# 3. 编辑配置
+notepad config\config.json
+# 填写 Claude API Key 和 Obsidian Vault 路径
 ```
 
-编辑 `config/config.json`：
+### 最小配置
+
+只需在 `config/config.json` 中填写两项：
 
 ```json
 {
-  "claude_api_key": "your-api-key",
-  "obsidian_vault_path": "/path/to/your/vault",
-  "google_sheets_credentials": "config/google-credentials.json",
-  "google_sheet_id": "your-sheet-id"
+  "claude_api_key": "sk-ant-你的API密钥",
+  "obsidian_vault_path": "你的Obsidian笔记路径"
 }
 ```
 
-### 3. 使用
+**获取 Claude API Key**: https://console.anthropic.com/
+
+### 开始使用
 
 ```bash
+# 激活虚拟环境
+# macOS/Linux:
+source venv/bin/activate
+# Windows:
+venv\Scripts\activate
+
 # 解析今天的笔记
 python cli.py parse --date today
 
-# 解析指定日期
-python cli.py parse --date 2025-10-25
+# 查看统计
+python cli.py stats
+
+# 生成周报
+python cli.py report --period week
+
+# 智能问答
+python cli.py chat "为什么我这周体重没变化？"
+
+# 获取个性化建议
+python cli.py recommend --goal "减重5kg"
 
 # 同步到 Google Sheets
 python cli.py sync
+```
 
-# 生成周报
-python cli.py analyze --period week
+### 使用快捷脚本
 
-# 交互式问答
-python cli.py chat "为什么我这周体重没变化？"
+```bash
+# macOS/Linux
+./run.sh parse --date today
+
+# Windows
+run.bat parse --date today
 ```
 
 ## 项目结构
@@ -89,17 +140,156 @@ health-tracker/
 - 饮食记录
 - 主观感受和备注
 
-## 开发计划
+## 📖 文档
 
-- [x] 项目架构设计
-- [ ] Obsidian 解析器
-- [ ] Claude 数据提取
-- [ ] SQLite 存储
-- [ ] Google Sheets 同步
-- [ ] 分析和建议生成
-- [ ] CLI 接口
-- [ ] 单元测试
+- **[QUICKSTART.md](QUICKSTART.md)** - 5 分钟快速上手
+- **[INSTALLATION.md](INSTALLATION.md)** - 详细的跨平台安装指南
+- **[SETUP.md](SETUP.md)** - 完整配置说明
+- **[EXAMPLES.md](EXAMPLES.md)** - 10 个实际使用场景
+- **[FAQ.md](FAQ.md)** - 常见问题解答
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - 贡献指南
 
-## License
+## 💡 使用示例
 
-MIT
+### 在 Obsidian 中随意记录
+
+```markdown
+# 今天的健康
+
+早上称重 68.5kg，体脂 23%，还不错！
+
+昨晚睡得很好，11 点睡到早上 6:30，大概 7.5 小时。
+
+下午跑步 5 公里，30 分钟，感觉很爽！
+
+![体重秤](weight.jpg)
+```
+
+### Claude 自动提取数据
+
+```json
+{
+  "date": "2025-10-25",
+  "weight": 68.5,
+  "body_fat_percentage": 23,
+  "sleep_duration": 7.5,
+  "exercises": [{
+    "type": "跑步",
+    "distance": 5,
+    "duration": 30
+  }]
+}
+```
+
+### 获取智能分析
+
+```markdown
+# 本周健康报告
+
+## 总体表现 ⭐⭐⭐⭐
+
+这周做得很不错！体重稳步下降，运动频率保持良好...
+
+## 关键指标
+- 体重: 69.2kg → 68.5kg (-0.7kg) 📉
+- 平均睡眠: 7.4 小时
+- 运动次数: 5 次
+
+## 建议
+1. 保持当前的运动频率
+2. 增加蛋白质摄入
+3. 继续坚持！
+```
+
+## 🌟 特色功能
+
+### 1. 自然语言理解
+
+不需要严格格式，随意用自然语言描述：
+
+```
+今天 68.5 公斤，感觉轻了点
+睡了大概 7 小时左右吧
+晚上跑步 5 公里，累但很爽
+```
+
+Claude 都能理解并提取正确的数据！
+
+### 2. 图片识别
+
+支持识别各种健康相关截图：
+- 体重秤显示
+- 健身 APP 数据
+- 睡眠监测报告
+- 饮食热量统计
+
+### 3. 智能分析
+
+- **趋势分析**: 体重、睡眠、运动的变化趋势
+- **相关性发现**: 睡眠和运动的关系、饮食和体重的关系
+- **异常检测**: 自动发现健康风险
+- **个性化建议**: 基于你的数据生成定制化建议
+
+### 4. 跨设备同步
+
+- 手机上用 Obsidian 记录
+- 电脑上自动解析
+- Google Sheets 云端查看
+- 随时随地访问数据
+
+## 🛠️ 技术栈
+
+- **Python 3.8+** - 核心语言
+- **Anthropic Claude API** - AI 智能提取和分析
+- **SQLite** - 本地数据存储
+- **Google Sheets API** - 云端同步
+- **Rich** - 美化命令行输出
+- **Click** - CLI 框架
+
+## 🔒 隐私和安全
+
+- ✅ **本地优先**: 数据首先存储在本地
+- ✅ **加密传输**: API 调用使用 HTTPS
+- ✅ **可选云端**: Google Sheets 同步完全可选
+- ✅ **开源透明**: 所有代码可审查
+- ✅ **无追踪**: 没有任何统计或追踪代码
+
+## 💰 成本
+
+- **Claude API**: 约 $1.5-3/月（日常使用）
+- **Google Sheets**: 免费
+- **其他**: 全部开源免费
+
+## 🗺️ 开发计划
+
+- [x] Obsidian 笔记解析
+- [x] Claude 智能数据提取
+- [x] 本地 SQLite 存储
+- [x] Google Sheets 云同步
+- [x] 智能分析和建议
+- [x] 命令行接口
+- [x] 跨平台支持
+- [ ] 移动端 APP
+- [ ] Web 界面
+- [ ] Apple Health / Google Fit 集成
+- [ ] 数据可视化仪表板
+
+## 🤝 贡献
+
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📄 License
+
+MIT License - 详见 [LICENSE](LICENSE)
+
+## 🙏 致谢
+
+- [Anthropic Claude](https://anthropic.com) - 强大的 AI 能力
+- [Obsidian](https://obsidian.md) - 优秀的笔记工具
+- 所有贡献者和使用者
+
+---
+
+**开始你的健康追踪之旅吧！** 🎉
+
+有任何问题？查看 [FAQ](FAQ.md) 或提交 Issue。
