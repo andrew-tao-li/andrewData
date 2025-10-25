@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+"""
+Health Tracker CLI
+
+命令行界面，用于管理健康数据的采集、分析和同步
+"""
+
+import os
+import sys
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Optional
+
+import click
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.markdown import Markdown
+
+# 导入项目模块
+from parsers import ObsidianParser
+from extractors import HealthDataExtractor
+from storage import HealthDatabase
+from sync import GoogleSheetsSync
+from analytics import HealthAnalyzer
+
+console = Console()
+
+
+def load_config() -> dict:
+    """加载配置文件"""
+    config_path = Path(__file__).parent / "config" / "config.json"
+
+    if not config_path.exists():
+        console.print("[red]配置文件不存在，请先创建 config/config.json[/red]")
+        console.print("[yellow]参考 config/config.example.json 创建配置文件[/yellow]")
+        sys.exit(1)
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def get_date(date_str: str) -> str:
+    """解析日期字符串"""
+    if date_str.lower() == 'today':
+        return datetime.now().date().isoformat()
+    elif date_str.lower() == 'yesterday':
+        return (datetime.now().date() - timedelta(days=1)).isoformat()
+    else:
+        try:
+            # 验证日期格式
+            datetime.fromisoformat(date_str)
+            return date_str
+        except ValueError:
+            console.print(f"[red]无效的日期格式: {date_str}[/red]")
+            console.print("[yellow]请使用 YYYY-MM-DD 格式，或 'today', 'yesterday'[/yellow]")
+            sys.exit(1)
+
+
+@click.group()
+def cli():
+    """健康追踪系统 - 使用 Claude AI 管理你的健康数据"""
+    pass
+
+
+@cli.command()
+@click.option('--date', default='today', help='日期 (YYYY-MM-DD, today, yesterday)')
+@click.option('--force', is_flag=True, help='强制重新处理已存在的记录')
+def parse(date: str, force: bool):
+    """解析 Obsidian 笔记并提取健康数据"""
+    config = load_config()
+    date_str = get_date(date)
+
+    console.print(f"\n[bold cyan]正在解析 {date_str} 的健康笔记...[/bold cyan]\n")
+
+    try:
+        # 初始化组件
+        parser = ObsidianParser(
+            config['obsidian_vault_path'],
+            config.get('obsidian_health_folder', 'Health')
+        )
+        extractor = HealthDataExtractor(
+            config['claude_api_key'],
+            config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        )
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+
+        # 检查是否已处理
+        if not force:
+            existing = db.get_record_by_date(date_str)
+            if existing:
+                console.print(f"[yellow]{date_str} 的记录已存在[/yellow]")
+                console.print("[yellow]使用 --force 选项强制重新处理[/yellow]")
+                return
+
+        # 解析笔记
+        note = parser.parse_note(datetime.fromisoformat(date_str))
+
+        if not note:
+            console.print(f"[red]未找到 {date_str} 的笔记[/red]")
+            return
+
+        console.print(f"[green]找到笔记: {note['file_path']}[/green]")
+
+        # 显示图片信息
+        if note['images']:
+            console.print(f"[green]找到 {len(note['images'])} 张图片[/green]")
+
+        # 使用 Claude 提取数据
+        console.print("\n[bold cyan]正在使用 Claude AI 提取数据...[/bold cyan]\n")
+
+        image_paths = [img['path'] for img in note['images']]
+        extracted_data = extractor.extract_from_note(
+            text=note['content'],
+            images=image_paths if image_paths else None,
+            date=date_str
+        )
+
+        # 检查是否有错误
+        if 'error' in extracted_data:
+            console.print(f"[red]提取数据时出错: {extracted_data['error']}[/red]")
+            return
+
+        # 保存到数据库
+        console.print("[bold cyan]正在保存到数据库...[/bold cyan]\n")
+
+        if db.save_health_record(extracted_data):
+            console.print("[green]✓ 数据保存成功！[/green]\n")
+
+            # 显示提取的数据
+            display_health_data(extracted_data)
+        else:
+            console.print("[red]✗ 保存数据失败[/red]")
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+@click.option('--date', default='today', help='日期 (YYYY-MM-DD, today, yesterday)')
+def show(date: str):
+    """显示指定日期的健康数据"""
+    config = load_config()
+    date_str = get_date(date)
+
+    db = HealthDatabase(config.get('database_path', 'health_data.db'))
+    record = db.get_record_by_date(date_str)
+
+    if not record:
+        console.print(f"[yellow]未找到 {date_str} 的记录[/yellow]")
+        return
+
+    display_health_data(record)
+
+
+@cli.command()
+@click.option('--days', default=7, help='同步最近N天的数据')
+@click.option('--all', 'sync_all', is_flag=True, help='同步所有未同步的数据')
+def sync(days: int, sync_all: bool):
+    """同步数据到 Google Sheets"""
+    config = load_config()
+
+    console.print("\n[bold cyan]正在同步到 Google Sheets...[/bold cyan]\n")
+
+    try:
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+
+        # 确保Google Sheets配置存在
+        if 'google_sheets_credentials' not in config or 'google_sheet_id' not in config:
+            console.print("[red]Google Sheets 配置缺失[/red]")
+            console.print("[yellow]请在 config.json 中配置 google_sheets_credentials 和 google_sheet_id[/yellow]")
+            return
+
+        sheets_sync = GoogleSheetsSync(
+            config['google_sheets_credentials'],
+            config['google_sheet_id']
+        )
+
+        # 获取要同步的记录
+        if sync_all:
+            records = db.get_unsynced_records()
+            console.print(f"找到 {len(records)} 条未同步的记录")
+        else:
+            records = db.get_recent_records(days)
+            console.print(f"将同步最近 {days} 天的 {len(records)} 条记录")
+
+        if not records:
+            console.print("[yellow]没有需要同步的记录[/yellow]")
+            return
+
+        # 同步
+        if sheets_sync.sync_records(records):
+            console.print("[green]✓ 同步成功！[/green]")
+
+            # 标记为已同步
+            for record in records:
+                db.mark_as_synced(record['date'])
+
+            # 更新统计信息
+            stats = db.get_statistics(days=30)
+            sheets_sync.update_statistics(stats)
+
+            console.print(f"\n[green]Google Sheets URL:[/green]")
+            console.print(sheets_sync.get_spreadsheet_url())
+        else:
+            console.print("[red]✗ 同步失败[/red]")
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+@click.option('--days', default=30, help='统计天数')
+def stats(days: int):
+    """显示健康数据统计"""
+    config = load_config()
+    db = HealthDatabase(config.get('database_path', 'health_data.db'))
+
+    console.print(f"\n[bold cyan]最近 {days} 天的健康统计[/bold cyan]\n")
+
+    stats = db.get_statistics(days)
+
+    if not stats:
+        console.print("[yellow]暂无数据[/yellow]")
+        return
+
+    # 创建统计表格
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("指标", style="cyan")
+    table.add_column("数值", style="green")
+
+    # 体重统计
+    if stats.get('weight'):
+        w = stats['weight']
+        if w.get('current'):
+            table.add_row("当前体重", f"{w['current']} kg")
+        if w.get('average'):
+            table.add_row("平均体重", f"{w['average']:.1f} kg")
+        if w.get('change'):
+            change_emoji = "📉" if w['change'] < 0 else "📈"
+            table.add_row("体重变化", f"{w['change']:+.1f} kg {change_emoji}")
+
+    # 睡眠统计
+    if stats.get('sleep'):
+        s = stats['sleep']
+        if s.get('average_duration'):
+            table.add_row("平均睡眠", f"{s['average_duration']:.1f} 小时")
+
+    # 运动统计
+    if stats.get('exercise'):
+        e = stats['exercise']
+        table.add_row("总运动时长", f"{e['total_minutes']} 分钟")
+        table.add_row("运动次数", f"{e['total_sessions']} 次")
+
+    # 记录统计
+    table.add_row("总记录天数", f"{stats['days_with_data']} 天")
+
+    console.print(table)
+
+
+@cli.command()
+@click.option('--period', type=click.Choice(['day', 'week', 'month']), default='week', help='报告周期')
+@click.option('--date', help='日期 (YYYY-MM-DD)')
+def report(period: str, date: Optional[str]):
+    """生成健康报告"""
+    config = load_config()
+
+    console.print(f"\n[bold cyan]正在生成{period_name(period)}报告...[/bold cyan]\n")
+
+    try:
+        extractor = HealthDataExtractor(
+            config['claude_api_key'],
+            config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        )
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+        analyzer = HealthAnalyzer(extractor, db)
+
+        if period == 'day':
+            date_str = get_date(date) if date else get_date('today')
+            analysis = analyzer.generate_daily_summary(date_str)
+        elif period == 'week':
+            date_str = get_date(date) if date else None
+            analysis = analyzer.generate_weekly_report(date_str)
+        else:  # month
+            if date:
+                dt = datetime.fromisoformat(get_date(date))
+            else:
+                dt = datetime.now()
+            analysis = analyzer.generate_monthly_report(dt.year, dt.month)
+
+        # 显示报告
+        console.print(Panel(
+            Markdown(analysis),
+            title=f"{period_name(period)}健康报告",
+            border_style="cyan"
+        ))
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+@click.argument('question')
+@click.option('--days', default=30, help='查询最近N天的数据')
+def chat(question: str, days: int):
+    """向 Claude 提问关于你的健康数据"""
+    config = load_config()
+
+    console.print(f"\n[bold cyan]正在分析数据并回答问题...[/bold cyan]\n")
+
+    try:
+        extractor = HealthDataExtractor(
+            config['claude_api_key'],
+            config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        )
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+        analyzer = HealthAnalyzer(extractor, db)
+
+        answer = analyzer.answer_question(question, days)
+
+        console.print(Panel(
+            Markdown(answer),
+            title="Claude 的回答",
+            border_style="green"
+        ))
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+@click.option('--days', default=30, help='分析天数')
+def correlations(days: int):
+    """分析健康指标之间的相关性"""
+    config = load_config()
+
+    console.print(f"\n[bold cyan]正在分析最近 {days} 天的数据相关性...[/bold cyan]\n")
+
+    try:
+        extractor = HealthDataExtractor(
+            config['claude_api_key'],
+            config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        )
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+        analyzer = HealthAnalyzer(extractor, db)
+
+        analysis = analyzer.identify_correlations(days)
+
+        console.print(Panel(
+            Markdown(analysis),
+            title="相关性分析",
+            border_style="magenta"
+        ))
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+
+
+@cli.command()
+@click.option('--goal', help='健康目标（如：减重5kg）')
+def recommend(goal: Optional[str]):
+    """获取个性化健康建议"""
+    config = load_config()
+
+    console.print("\n[bold cyan]正在生成个性化建议...[/bold cyan]\n")
+
+    try:
+        extractor = HealthDataExtractor(
+            config['claude_api_key'],
+            config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        )
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+        analyzer = HealthAnalyzer(extractor, db)
+
+        recommendations = analyzer.generate_recommendations(goal)
+
+        console.print(Panel(
+            Markdown(recommendations),
+            title="个性化健康建议",
+            border_style="yellow"
+        ))
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+
+
+def display_health_data(data: dict):
+    """显示健康数据的美化输出"""
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("项目", style="cyan", width=20)
+    table.add_column("数值", style="green")
+
+    # 日期
+    if 'date' in data or 'processed_date' in data:
+        table.add_row("日期", data.get('date') or data.get('processed_date'))
+
+    # 体重相关
+    if data.get('weight'):
+        table.add_row("体重", f"{data['weight']} kg")
+    if data.get('body_fat_percentage'):
+        table.add_row("体脂率", f"{data['body_fat_percentage']}%")
+    if data.get('muscle_mass'):
+        table.add_row("肌肉量", f"{data['muscle_mass']} kg")
+
+    # 睡眠相关
+    if data.get('sleep_duration'):
+        table.add_row("睡眠时长", f"{data['sleep_duration']} 小时")
+    if data.get('sleep_quality'):
+        table.add_row("睡眠质量", str(data['sleep_quality']))
+
+    # 运动
+    if data.get('exercises'):
+        exercises_text = "\n".join([
+            f"• {ex.get('type', '未知')} - {ex.get('duration', '?')}分钟"
+            for ex in data['exercises']
+        ])
+        table.add_row("运动", exercises_text)
+
+    # 整体感受
+    if data.get('overall_feeling'):
+        table.add_row("整体感受", data['overall_feeling'])
+
+    console.print(table)
+
+
+def period_name(period: str) -> str:
+    """获取周期的中文名称"""
+    names = {
+        'day': '每日',
+        'week': '每周',
+        'month': '每月'
+    }
+    return names.get(period, period)
+
+
+if __name__ == '__main__':
+    cli()

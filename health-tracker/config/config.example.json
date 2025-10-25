@@ -1,0 +1,10 @@
+{
+  "claude_api_key": "your-claude-api-key-here",
+  "obsidian_vault_path": "/path/to/your/obsidian/vault",
+  "obsidian_health_folder": "Health",
+  "google_sheets_credentials": "config/google-credentials.json",
+  "google_sheet_id": "your-google-sheet-id",
+  "database_path": "health_data.db",
+  "sync_interval_hours": 24,
+  "claude_model": "claude-3-5-sonnet-20241022"
+}

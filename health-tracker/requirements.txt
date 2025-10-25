@@ -1,0 +1,26 @@
+# Claude AI
+anthropic>=0.39.0
+
+# Google Sheets
+gspread>=6.0.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Markdown parsing
+python-frontmatter>=1.0.0
+
+# Image handling
+Pillow>=10.0.0
+
+# Data visualization (for executing Claude-generated code)
+matplotlib>=3.7.0
+pandas>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+schedule>=1.2.0
+
+# CLI
+click>=8.1.0
+rich>=13.0.0
