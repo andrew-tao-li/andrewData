@@ -53,6 +53,13 @@ Claude Pro:        $20/月（固定）
 4. 创建 API Key
 5. 设置预算限制（推荐 $5/月）
 
+**或者使用 OpenRouter**（如果你已经有 OpenRouter 账号）：
+1. 访问 https://openrouter.ai/
+2. 登录账号
+3. 创建 API Key
+4. 在配置中设置 `use_openrouter: true`
+5. 查看 [docs/OPENROUTER_SETUP.md](docs/OPENROUTER_SETUP.md) 了解详细配置
+
 ### Q3: 我的数据安全吗？
 
 **A**: 是的，系统设计时充分考虑了隐私：

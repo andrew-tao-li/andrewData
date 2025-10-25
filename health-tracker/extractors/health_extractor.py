@@ -14,16 +14,44 @@ from anthropic import Anthropic
 class HealthDataExtractor:
     """使用Claude提取健康数据"""
 
-    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20241022"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-3-5-sonnet-20241022",
+        use_openrouter: bool = False
+    ):
         """
         初始化提取器
 
         Args:
-            api_key: Claude API密钥
+            api_key: API密钥（Anthropic 或 OpenRouter）
             model: 使用的模型名称
+            use_openrouter: 是否使用 OpenRouter
         """
-        self.client = Anthropic(api_key=api_key)
+        self.use_openrouter = use_openrouter
         self.model = model
+
+        if use_openrouter:
+            # 使用 OpenRouter
+            self.client = Anthropic(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
+            # OpenRouter 使用不同的模型名称格式
+            # 如果模型名不包含提供商前缀，自动添加
+            if not model.startswith("anthropic/"):
+                # 转换标准 Anthropic 模型名到 OpenRouter 格式
+                model_map = {
+                    "claude-3-5-sonnet-20241022": "anthropic/claude-3.5-sonnet",
+                    "claude-3-opus-20240229": "anthropic/claude-3-opus",
+                    "claude-3-haiku-20240307": "anthropic/claude-3-haiku",
+                }
+                self.model = model_map.get(model, f"anthropic/{model}")
+            print(f"Using OpenRouter with model: {self.model}")
+        else:
+            # 使用原生 Anthropic API
+            self.client = Anthropic(api_key=api_key)
+            print(f"Using Anthropic API with model: {self.model}")
 
     def extract_from_note(
         self,

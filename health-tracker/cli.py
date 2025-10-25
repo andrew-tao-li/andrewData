@@ -58,6 +58,46 @@ def get_date(date_str: str) -> str:
             sys.exit(1)
 
 
+def create_extractor(config: dict) -> HealthDataExtractor:
+    """
+    根据配置创建数据提取器
+
+    支持 Anthropic API 或 OpenRouter
+    """
+    use_openrouter = config.get('use_openrouter', False)
+
+    if use_openrouter:
+        # 使用 OpenRouter
+        api_key = config.get('openrouter_api_key')
+        if not api_key:
+            console.print("[red]错误: 配置了 use_openrouter 但缺少 openrouter_api_key[/red]")
+            sys.exit(1)
+
+        model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
+        console.print(f"[cyan]使用 OpenRouter API[/cyan]")
+
+        return HealthDataExtractor(
+            api_key=api_key,
+            model=model,
+            use_openrouter=True
+        )
+    else:
+        # 使用原生 Anthropic API
+        api_key = config.get('claude_api_key')
+        if not api_key:
+            console.print("[red]错误: 缺少 claude_api_key 配置[/red]")
+            sys.exit(1)
+
+        model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        console.print(f"[cyan]使用 Anthropic API[/cyan]")
+
+        return HealthDataExtractor(
+            api_key=api_key,
+            model=model,
+            use_openrouter=False
+        )
+
+
 @click.group()
 def cli():
     """健康追踪系统 - 使用 Claude AI 管理你的健康数据"""
@@ -80,10 +120,7 @@ def parse(date: str, force: bool):
             config['obsidian_vault_path'],
             config.get('obsidian_health_folder', 'Health')
         )
-        extractor = HealthDataExtractor(
-            config['claude_api_key'],
-            config.get('claude_model', 'claude-3-5-sonnet-20241022')
-        )
+        extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
 
         # 检查是否已处理
@@ -273,10 +310,7 @@ def report(period: str, date: Optional[str]):
     console.print(f"\n[bold cyan]正在生成{period_name(period)}报告...[/bold cyan]\n")
 
     try:
-        extractor = HealthDataExtractor(
-            config['claude_api_key'],
-            config.get('claude_model', 'claude-3-5-sonnet-20241022')
-        )
+        extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
         analyzer = HealthAnalyzer(extractor, db)
 
@@ -316,10 +350,7 @@ def chat(question: str, days: int):
     console.print(f"\n[bold cyan]正在分析数据并回答问题...[/bold cyan]\n")
 
     try:
-        extractor = HealthDataExtractor(
-            config['claude_api_key'],
-            config.get('claude_model', 'claude-3-5-sonnet-20241022')
-        )
+        extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
         analyzer = HealthAnalyzer(extractor, db)
 
@@ -346,10 +377,7 @@ def correlations(days: int):
     console.print(f"\n[bold cyan]正在分析最近 {days} 天的数据相关性...[/bold cyan]\n")
 
     try:
-        extractor = HealthDataExtractor(
-            config['claude_api_key'],
-            config.get('claude_model', 'claude-3-5-sonnet-20241022')
-        )
+        extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
         analyzer = HealthAnalyzer(extractor, db)
 
@@ -374,10 +402,7 @@ def recommend(goal: Optional[str]):
     console.print("\n[bold cyan]正在生成个性化建议...[/bold cyan]\n")
 
     try:
-        extractor = HealthDataExtractor(
-            config['claude_api_key'],
-            config.get('claude_model', 'claude-3-5-sonnet-20241022')
-        )
+        extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
         analyzer = HealthAnalyzer(extractor, db)
 
