@@ -4,6 +4,7 @@
 """
 
 import json
+from datetime import datetime
 from parsers.obsidian_parser import ObsidianParser
 
 def test_remote_image():
@@ -22,8 +23,9 @@ def test_remote_image():
     )
 
     # 解析笔记
-    test_date = '2025-10-26'
-    print(f"正在解析 {test_date} 的笔记...\n")
+    test_date_str = '2025-10-26'
+    test_date = datetime.strptime(test_date_str, '%Y-%m-%d').date()
+    print(f"正在解析 {test_date_str} 的笔记...\n")
 
     note_data = parser.parse_note(test_date)
 
