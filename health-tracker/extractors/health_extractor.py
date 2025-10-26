@@ -6,6 +6,7 @@ Claude健康数据提取器
 
 import json
 import base64
+import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from anthropic import Anthropic
@@ -323,25 +324,59 @@ class HealthDataExtractor:
 
     def _encode_image(self, image_path: str) -> Optional[Dict[str, Any]]:
         """
-        编码图片为base64
+        编码图片为base64（支持本地文件和远程URL）
 
         Args:
-            image_path: 图片路径
+            image_path: 图片路径或URL
 
         Returns:
             Claude API所需的图片内容格式
         """
         try:
-            path = Path(image_path)
-            if not path.exists():
-                print(f"Image not found: {image_path}")
-                return None
+            # 检测是否为远程URL
+            if image_path.startswith(('http://', 'https://')):
+                print(f"Downloading remote image: {image_path}")
+                response = requests.get(image_path, timeout=30)
+                response.raise_for_status()
+                image_bytes = response.content
 
-            with open(path, 'rb') as f:
-                image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+                # 从URL获取文件扩展名
+                from urllib.parse import urlparse, unquote
+                parsed_url = urlparse(image_path)
+                url_path = unquote(parsed_url.path)
+                suffix = Path(url_path).suffix.lower()
+
+                # 如果URL没有扩展名，尝试从Content-Type获取
+                if not suffix:
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'jpeg' in content_type or 'jpg' in content_type:
+                        suffix = '.jpg'
+                    elif 'png' in content_type:
+                        suffix = '.png'
+                    elif 'webp' in content_type:
+                        suffix = '.webp'
+                    elif 'gif' in content_type:
+                        suffix = '.gif'
+                    else:
+                        suffix = '.jpg'  # 默认
+
+                print(f"✓ Downloaded {len(image_bytes)} bytes, type: {suffix}")
+            else:
+                # 本地文件路径
+                path = Path(image_path)
+                if not path.exists():
+                    print(f"Image not found: {image_path}")
+                    return None
+
+                with open(path, 'rb') as f:
+                    image_bytes = f.read()
+
+                suffix = path.suffix.lower()
+
+            # 编码为base64
+            image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
 
             # 判断图片类型
-            suffix = path.suffix.lower()
             media_type_map = {
                 '.jpg': 'image/jpeg',
                 '.jpeg': 'image/jpeg',
@@ -360,31 +395,68 @@ class HealthDataExtractor:
                 }
             }
 
+        except requests.RequestException as e:
+            print(f"Error downloading remote image {image_path}: {e}")
+            return None
         except Exception as e:
             print(f"Error encoding image {image_path}: {e}")
             return None
 
     def _encode_image_for_openai(self, image_path: str) -> Optional[Dict[str, Any]]:
         """
-        编码图片为 OpenAI Vision API 格式
+        编码图片为 OpenAI Vision API 格式（支持本地文件和远程URL）
 
         Args:
-            image_path: 图片路径
+            image_path: 图片路径或URL
 
         Returns:
             OpenAI API所需的图片内容格式
         """
         try:
-            path = Path(image_path)
-            if not path.exists():
-                print(f"Image not found: {image_path}")
-                return None
+            # 检测是否为远程URL
+            if image_path.startswith(('http://', 'https://')):
+                print(f"Downloading remote image: {image_path}")
+                response = requests.get(image_path, timeout=30)
+                response.raise_for_status()
+                image_bytes = response.content
 
-            with open(path, 'rb') as f:
-                image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+                # 从URL获取文件扩展名
+                from urllib.parse import urlparse, unquote
+                parsed_url = urlparse(image_path)
+                url_path = unquote(parsed_url.path)
+                suffix = Path(url_path).suffix.lower()
+
+                # 如果URL没有扩展名，尝试从Content-Type获取
+                if not suffix:
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'jpeg' in content_type or 'jpg' in content_type:
+                        suffix = '.jpg'
+                    elif 'png' in content_type:
+                        suffix = '.png'
+                    elif 'webp' in content_type:
+                        suffix = '.webp'
+                    elif 'gif' in content_type:
+                        suffix = '.gif'
+                    else:
+                        suffix = '.jpg'  # 默认
+
+                print(f"✓ Downloaded {len(image_bytes)} bytes, type: {suffix}")
+            else:
+                # 本地文件路径
+                path = Path(image_path)
+                if not path.exists():
+                    print(f"Image not found: {image_path}")
+                    return None
+
+                with open(path, 'rb') as f:
+                    image_bytes = f.read()
+
+                suffix = path.suffix.lower()
+
+            # 编码为base64
+            image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
 
             # 判断图片类型
-            suffix = path.suffix.lower()
             media_type_map = {
                 '.jpg': 'image/jpeg',
                 '.jpeg': 'image/jpeg',
@@ -402,6 +474,9 @@ class HealthDataExtractor:
                 }
             }
 
+        except requests.RequestException as e:
+            print(f"Error downloading remote image {image_path}: {e}")
+            return None
         except Exception as e:
             print(f"Error encoding image {image_path}: {e}")
             return None
