@@ -15,17 +15,22 @@ import frontmatter
 class ObsidianParser:
     """Obsidian笔记解析器"""
 
-    def __init__(self, vault_path: str, health_folder: str = "Health"):
+    def __init__(self, vault_path: str, health_folder: str = "Health",
+                 health_section_start: str = None, health_section_end: str = None):
         """
         初始化解析器
 
         Args:
             vault_path: Obsidian vault的根目录
-            health_folder: 健康日志所在的文件夹名称
+            health_folder: 健康日志所在的文件夹名称（如果为空或"."则使用根目录）
+            health_section_start: 健康内容的开始标记（如"（健康日志）"）
+            health_section_end: 健康内容的结束标记（如"（健康日志结束）"）
         """
         self.vault_path = Path(vault_path)
-        self.health_folder = health_folder
-        self.health_path = self.vault_path / health_folder
+        self.health_folder = health_folder if health_folder and health_folder != "." else ""
+        self.health_path = self.vault_path / self.health_folder if self.health_folder else self.vault_path
+        self.health_section_start = health_section_start
+        self.health_section_end = health_section_end
 
         if not self.vault_path.exists():
             raise ValueError(f"Vault path does not exist: {vault_path}")
@@ -102,22 +107,58 @@ class ObsidianParser:
         with open(file_path, 'r', encoding='utf-8') as f:
             post = frontmatter.load(f)
 
-        # 提取图片链接
-        images = self._extract_images(post.content, file_path.parent)
+        # 提取健康内容（如果设置了标记）
+        content = self._extract_health_section(post.content) if self.health_section_start else post.content
+
+        # 提取图片链接（只从健康内容中提取）
+        images = self._extract_images(content, file_path.parent)
 
         # 提取可能的健康相关标签
-        tags = self._extract_tags(post.content)
+        tags = self._extract_tags(content)
         if hasattr(post, 'metadata') and 'tags' in post.metadata:
             tags.extend(post.metadata['tags'])
 
         return {
             'file_path': str(file_path),
-            'content': post.content,
+            'content': content,
+            'original_content': post.content,  # 保留原始完整内容
             'metadata': dict(post.metadata) if hasattr(post, 'metadata') else {},
             'images': images,
             'tags': list(set(tags)),
             'date': self._extract_date_from_filename(file_path)
         }
+
+    def _extract_health_section(self, content: str) -> str:
+        """
+        从内容中提取健康日志部分
+
+        Args:
+            content: 笔记完整内容
+
+        Returns:
+            提取的健康日志内容，如果没有找到标记则返回原内容
+        """
+        if not self.health_section_start:
+            return content
+
+        # 查找开始标记
+        start_idx = content.find(self.health_section_start)
+        if start_idx == -1:
+            # 如果没有找到开始标记，返回原内容
+            return content
+
+        # 跳过开始标记本身
+        start_idx += len(self.health_section_start)
+
+        # 查找结束标记
+        if self.health_section_end:
+            end_idx = content.find(self.health_section_end, start_idx)
+            if end_idx != -1:
+                # 找到了结束标记，提取中间内容
+                return content[start_idx:end_idx].strip()
+
+        # 如果没有结束标记或没找到，返回从开始标记到文件末尾的内容
+        return content[start_idx:].strip()
 
     def _extract_images(self, content: str, base_path: Path) -> List[Dict[str, str]]:
         """

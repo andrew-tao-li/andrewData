@@ -15,6 +15,11 @@
   "obsidian_vault_path": "/path/to/your/obsidian/vault",
   "obsidian_health_folder": "Health",
 
+  "_comment_health_section": "如果你的健康日志在日记中的特定部分，设置以下标记",
+  "_comment_health_section_example": "例如：（健康日志）...（健康日志结束）",
+  "health_section_start": "",
+  "health_section_end": "",
+
   "_comment_google": "Google Sheets 配置（可选，用于云端同步）",
   "google_sheets_credentials": "config/google-credentials.json",
   "google_sheet_id": "your-google-sheet-id",

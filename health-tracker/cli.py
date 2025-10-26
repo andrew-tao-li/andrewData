@@ -118,7 +118,9 @@ def parse(date: str, force: bool):
         # 初始化组件
         parser = ObsidianParser(
             config['obsidian_vault_path'],
-            config.get('obsidian_health_folder', 'Health')
+            config.get('obsidian_health_folder', 'Health'),
+            health_section_start=config.get('health_section_start'),
+            health_section_end=config.get('health_section_end')
         )
         extractor = create_extractor(config)
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
