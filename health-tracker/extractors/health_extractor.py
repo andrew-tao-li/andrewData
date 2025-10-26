@@ -531,17 +531,61 @@ class HealthDataExtractor:
             date = entry.get('processed_date', entry.get('date', '未知日期'))
             lines.append(f"\n日期: {date}")
 
-            # 体重数据
+            # 体重相关数据
             if 'weight' in entry:
                 lines.append(f"  体重: {entry['weight']}kg")
             if 'body_fat_percentage' in entry:
                 lines.append(f"  体脂率: {entry['body_fat_percentage']}%")
+            if 'muscle_mass' in entry:
+                lines.append(f"  肌肉量: {entry['muscle_mass']}kg")
+            if 'basal_metabolism' in entry:
+                lines.append(f"  基础代谢: {entry['basal_metabolism']}kcal/天")
+            if 'visceral_fat_level' in entry:
+                lines.append(f"  内脏脂肪等级: {entry['visceral_fat_level']}")
+            if 'bmi' in entry:
+                lines.append(f"  BMI: {entry['bmi']}")
 
             # 睡眠数据
             if 'sleep_duration' in entry:
-                lines.append(f"  睡眠: {entry['sleep_duration']}小时")
+                lines.append(f"  睡眠时长: {entry['sleep_duration']}小时")
+            if 'deep_sleep_duration' in entry:
+                lines.append(f"  深度睡眠: {entry['deep_sleep_duration']}小时")
+            if 'rem_sleep_duration' in entry:
+                lines.append(f"  REM睡眠: {entry['rem_sleep_duration']}小时")
             if 'sleep_quality' in entry:
                 lines.append(f"  睡眠质量: {entry['sleep_quality']}")
+            if 'urination_count' in entry:
+                lines.append(f"  夜间排尿: {entry['urination_count']}次")
+
+            # 心血管数据
+            if 'resting_heart_rate' in entry:
+                lines.append(f"  静息心率: {entry['resting_heart_rate']}bpm")
+            if 'heart_rate' in entry:
+                lines.append(f"  心率: {entry['heart_rate']}bpm")
+            if 'hrv' in entry:
+                lines.append(f"  HRV: {entry['hrv']}")
+            if 'blood_pressure' in entry:
+                lines.append(f"  血压: {entry['blood_pressure']}")
+            if 'vo2_max' in entry:
+                lines.append(f"  VO2 Max: {entry['vo2_max']}")
+
+            # 疼痛和症状
+            if 'pain_score' in entry:
+                lines.append(f"  疼痛评分: {entry['pain_score']}/10")
+            if 'pain_location' in entry:
+                lines.append(f"  疼痛部位: {entry['pain_location']}")
+            if 'morning_stiffness_duration' in entry:
+                lines.append(f"  晨僵时间: {entry['morning_stiffness_duration']}分钟")
+            if 'symptoms' in entry:
+                lines.append(f"  症状: {entry['symptoms']}")
+
+            # 主观感受
+            if 'mood' in entry:
+                lines.append(f"  心情: {entry['mood']}")
+            if 'energy_level' in entry:
+                lines.append(f"  精力水平: {entry['energy_level']}")
+            if 'overall_feeling' in entry:
+                lines.append(f"  整体感受: {entry['overall_feeling']}")
 
             # 运动数据
             if 'exercises' in entry and entry['exercises']:
@@ -551,9 +595,13 @@ class HealthDataExtractor:
                     duration = ex.get('duration', '?')
                     lines.append(f"    - {ex_type} {duration}分钟")
 
-            # 主观感受
-            if 'overall_feeling' in entry:
-                lines.append(f"  整体感受: {entry['overall_feeling']}")
+            # 其他指标
+            if 'steps' in entry:
+                lines.append(f"  步数: {entry['steps']}")
+            if 'water_intake' in entry:
+                lines.append(f"  饮水量: {entry['water_intake']}ml")
+            if 'health_notes' in entry:
+                lines.append(f"  备注: {entry['health_notes']}")
 
         return '\n'.join(lines)
 
