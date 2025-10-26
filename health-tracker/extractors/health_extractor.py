@@ -212,44 +212,59 @@ class HealthDataExtractor:
    - body_fat_percentage: 体脂率(%)
    - muscle_mass: 肌肉量(kg)
    - bmi: BMI指数
-   - weight_feeling: 对体重的主观感受（如"感觉轻了"、"有点重"等）
+   - basal_metabolism: 基础代谢(kcal/天)
+   - visceral_fat_level: 内脏脂肪等级
+   - weight_feeling: 对体重的主观感受
 
 2. **睡眠相关**:
    - sleep_duration: 总睡眠时长(小时)
    - sleep_start: 入睡时间
    - sleep_end: 起床时间
-   - sleep_quality: 睡眠质量（可以是主观评分1-10，或描述如"好"、"一般"、"差"）
+   - sleep_quality: 睡眠质量（1-10分或描述）
    - deep_sleep_duration: 深睡眠时长(小时)
-   - sleep_notes: 睡眠相关的备注
+   - rem_sleep_duration: REM睡眠时长(小时)
+   - sleep_notes: 睡眠相关备注
+   - urination_count: 夜间排尿次数
 
-3. **运动相关**:
+3. **心血管相关**:
+   - heart_rate: 心率(bpm)
+   - resting_heart_rate: 静息心率(bpm)
+   - hrv: 心率变异性(HRV)
+   - blood_pressure: 血压（如"120/80"）
+   - vo2_max: 最大摄氧量(VO2 Max)
+
+4. **运动相关**:
    - exercises: 运动列表，每项包含:
-     - type: 运动类型（如跑步、游泳、健身等）
+     - type: 运动类型
      - duration: 时长(分钟)
-     - distance: 距离(km，如适用)
-     - intensity: 强度（轻度、中度、高强度）
+     - distance: 距离(km)
+     - intensity: 强度
      - calories: 消耗卡路里
      - feeling: 运动后感受
 
-4. **饮食相关**:
+5. **饮食相关**:
    - meals: 餐食列表，每项包含:
-     - meal_type: 餐次（早餐、午餐、晚餐、加餐）
+     - meal_type: 餐次
      - description: 食物描述
      - calories: 估算卡路里
      - notes: 备注
 
-5. **其他健康指标**:
-   - heart_rate: 心率(bpm)
-   - blood_pressure: 血压（如"120/80"）
+6. **疼痛和症状**:
+   - pain_score: 疼痛评分(1-10)
+   - pain_location: 疼痛部位
+   - morning_stiffness_duration: 晨僵持续时间(分钟)
+   - symptoms: 其他症状描述
+
+7. **主观感受**:
    - mood: 心情（1-10分或描述）
    - energy_level: 精力水平（1-10分或描述）
+   - overall_feeling: 整体感受
+
+8. **其他指标**:
    - water_intake: 饮水量(ml)
    - steps: 步数
-
-6. **主观感受和目标**:
-   - overall_feeling: 整体感受
-   - health_notes: 其他健康相关备注
-   - goals: 提到的健康目标
+   - health_notes: 其他健康备注
+   - goals: 健康目标
 
 **重要指示**:
 - 只提取笔记中明确提到的信息，不要编造数据
@@ -264,15 +279,21 @@ class HealthDataExtractor:
 **JSON 格式示例**（扁平结构）:
 ```json
 {{
-  "weight": 68.5,
-  "muscle_mass": 35.2,
-  "sleep_duration": 7.5,
-  "deep_sleep_duration": 1.5,
-  "heart_rate": 60,
-  "mood": "很好",
-  "exercises": [
-    {{"type": "跑步", "duration": 30, "distance": 5}}
-  ]
+  "weight": 87.1,
+  "muscle_mass": 36.9,
+  "basal_metabolism": 1788,
+  "visceral_fat_level": 9,
+  "sleep_duration": 8.6,
+  "deep_sleep_duration": 1.85,
+  "rem_sleep_duration": 2.47,
+  "resting_heart_rate": 49,
+  "hrv": 53,
+  "urination_count": 1,
+  "mood": "平复",
+  "pain_score": 2,
+  "pain_location": "跟腱止点",
+  "morning_stiffness_duration": 1,
+  "symptoms": "筋膜炎或跟腱疼痛"
 }}
 ```
 

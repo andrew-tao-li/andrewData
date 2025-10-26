@@ -36,35 +36,59 @@ class HealthDatabase:
             CREATE TABLE IF NOT EXISTS health_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL UNIQUE,
+
+                -- 体重相关
                 weight REAL,
                 body_fat_percentage REAL,
                 muscle_mass REAL,
                 bmi REAL,
+                basal_metabolism INTEGER,
+                visceral_fat_level INTEGER,
                 weight_feeling TEXT,
 
+                -- 睡眠相关
                 sleep_duration REAL,
                 sleep_start TEXT,
                 sleep_end TEXT,
                 sleep_quality TEXT,
                 deep_sleep_duration REAL,
+                rem_sleep_duration REAL,
                 sleep_notes TEXT,
 
+                -- 心血管相关
                 heart_rate INTEGER,
+                resting_heart_rate INTEGER,
+                hrv INTEGER,
                 blood_pressure TEXT,
+                vo2_max INTEGER,
+
+                -- 主观感受
                 mood TEXT,
                 energy_level TEXT,
+                overall_feeling TEXT,
+
+                -- 其他指标
                 water_intake INTEGER,
                 steps INTEGER,
+                urination_count INTEGER,
 
-                overall_feeling TEXT,
+                -- 疼痛和症状
+                pain_score INTEGER,
+                pain_location TEXT,
+                morning_stiffness_duration INTEGER,
+                symptoms TEXT,
+
+                -- 目标和备注
                 health_notes TEXT,
                 goals TEXT,
 
+                -- 原始数据
                 raw_text TEXT,
                 raw_json TEXT,
                 has_images BOOLEAN,
                 image_count INTEGER,
 
+                -- 元数据
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 synced_to_sheets BOOLEAN DEFAULT FALSE,
@@ -163,30 +187,50 @@ class HealthDatabase:
             # 准备主记录数据
             record_data = {
                 'date': date,
+                # 体重相关
                 'weight': data.get('weight'),
                 'body_fat_percentage': data.get('body_fat_percentage'),
                 'muscle_mass': data.get('muscle_mass'),
                 'bmi': data.get('bmi'),
+                'basal_metabolism': data.get('basal_metabolism'),
+                'visceral_fat_level': data.get('visceral_fat_level'),
                 'weight_feeling': data.get('weight_feeling'),
+                # 睡眠相关
                 'sleep_duration': data.get('sleep_duration'),
                 'sleep_start': data.get('sleep_start'),
                 'sleep_end': data.get('sleep_end'),
                 'sleep_quality': str(data.get('sleep_quality')) if data.get('sleep_quality') else None,
                 'deep_sleep_duration': data.get('deep_sleep_duration'),
+                'rem_sleep_duration': data.get('rem_sleep_duration'),
                 'sleep_notes': data.get('sleep_notes'),
+                # 心血管相关
                 'heart_rate': data.get('heart_rate'),
+                'resting_heart_rate': data.get('resting_heart_rate'),
+                'hrv': data.get('hrv'),
                 'blood_pressure': data.get('blood_pressure'),
+                'vo2_max': data.get('vo2_max'),
+                # 主观感受
                 'mood': str(data.get('mood')) if data.get('mood') else None,
                 'energy_level': str(data.get('energy_level')) if data.get('energy_level') else None,
+                'overall_feeling': data.get('overall_feeling'),
+                # 其他指标
                 'water_intake': data.get('water_intake'),
                 'steps': data.get('steps'),
-                'overall_feeling': data.get('overall_feeling'),
+                'urination_count': data.get('urination_count'),
+                # 疼痛和症状
+                'pain_score': data.get('pain_score'),
+                'pain_location': data.get('pain_location'),
+                'morning_stiffness_duration': data.get('morning_stiffness_duration'),
+                'symptoms': data.get('symptoms'),
+                # 目标和备注
                 'health_notes': data.get('health_notes'),
                 'goals': data.get('goals'),
+                # 原始数据
                 'raw_text': data.get('raw_text'),
                 'raw_json': json.dumps(data, ensure_ascii=False),
                 'has_images': data.get('has_images', False),
                 'image_count': data.get('image_count', 0),
+                # 元数据
                 'updated_at': datetime.now().isoformat()
             }
 
