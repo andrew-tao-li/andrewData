@@ -9,6 +9,11 @@ import base64
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from anthropic import Anthropic
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 
 class HealthDataExtractor:
@@ -30,11 +35,16 @@ class HealthDataExtractor:
         """
         self.use_openrouter = use_openrouter
         self.model = model
+        self.anthropic_client = None
+        self.openai_client = None
 
         if use_openrouter:
-            # 使用 OpenRouter
-            # OpenRouter 需要额外的 headers
-            self.client = Anthropic(
+            # OpenRouter 使用 OpenAI 兼容的 API
+            if not OPENAI_AVAILABLE:
+                raise ImportError("使用 OpenRouter 需要安装 openai 包: pip install openai")
+
+            # 使用 OpenAI SDK 调用 OpenRouter
+            self.openai_client = OpenAI(
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
                 default_headers={
@@ -42,6 +52,7 @@ class HealthDataExtractor:
                     "X-Title": "Health Tracker"
                 }
             )
+
             # OpenRouter 使用不同的模型名称格式
             # 如果模型名不包含提供商前缀，自动添加
             if not model.startswith("anthropic/"):
@@ -55,7 +66,7 @@ class HealthDataExtractor:
             print(f"Using OpenRouter with model: {self.model}")
         else:
             # 使用原生 Anthropic API
-            self.client = Anthropic(api_key=api_key)
+            self.anthropic_client = Anthropic(api_key=api_key)
             print(f"Using Anthropic API with model: {self.model}")
 
     def extract_from_note(
@@ -75,6 +86,18 @@ class HealthDataExtractor:
         Returns:
             结构化的健康数据
         """
+        if self.use_openrouter:
+            return self._extract_with_openrouter(text, images, date)
+        else:
+            return self._extract_with_anthropic(text, images, date)
+
+    def _extract_with_anthropic(
+        self,
+        text: str,
+        images: Optional[List[str]] = None,
+        date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """使用 Anthropic API 提取数据"""
         # 构建提示词
         prompt = self._build_extraction_prompt(text, date)
 
@@ -89,8 +112,8 @@ class HealthDataExtractor:
                     content.append(image_content)
 
         try:
-            # 调用Claude API
-            response = self.client.messages.create(
+            # 调用Anthropic API
+            response = self.anthropic_client.messages.create(
                 model=self.model,
                 max_tokens=4096,
                 messages=[{
@@ -113,6 +136,59 @@ class HealthDataExtractor:
 
         except Exception as e:
             print(f"Error extracting data: {e}")
+            return {
+                'error': str(e),
+                'raw_text': text,
+                'processed_date': date
+            }
+
+    def _extract_with_openrouter(
+        self,
+        text: str,
+        images: Optional[List[str]] = None,
+        date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """使用 OpenRouter (OpenAI 格式) 提取数据"""
+        # 构建提示词
+        prompt = self._build_extraction_prompt(text, date)
+
+        # OpenAI 格式的消息内容
+        content_parts = [{"type": "text", "text": prompt}]
+
+        # 添加图片 (OpenAI 格式)
+        if images:
+            for image_path in images:
+                image_content = self._encode_image_for_openai(image_path)
+                if image_content:
+                    content_parts.append(image_content)
+
+        try:
+            # 调用 OpenRouter (OpenAI SDK)
+            response = self.openai_client.chat.completions.create(
+                model=self.model,
+                max_tokens=4096,
+                messages=[{
+                    "role": "user",
+                    "content": content_parts if len(content_parts) > 1 else prompt
+                }]
+            )
+
+            # 解析响应
+            result_text = response.choices[0].message.content
+            extracted_data = self._parse_claude_response(result_text)
+
+            # 添加元数据
+            extracted_data['raw_text'] = text
+            extracted_data['processed_date'] = date
+            extracted_data['has_images'] = bool(images)
+            extracted_data['image_count'] = len(images) if images else 0
+
+            return extracted_data
+
+        except Exception as e:
+            print(f"Error extracting data: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'error': str(e),
                 'raw_text': text,
@@ -230,6 +306,48 @@ class HealthDataExtractor:
             print(f"Error encoding image {image_path}: {e}")
             return None
 
+    def _encode_image_for_openai(self, image_path: str) -> Optional[Dict[str, Any]]:
+        """
+        编码图片为 OpenAI Vision API 格式
+
+        Args:
+            image_path: 图片路径
+
+        Returns:
+            OpenAI API所需的图片内容格式
+        """
+        try:
+            path = Path(image_path)
+            if not path.exists():
+                print(f"Image not found: {image_path}")
+                return None
+
+            with open(path, 'rb') as f:
+                image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+
+            # 判断图片类型
+            suffix = path.suffix.lower()
+            media_type_map = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp'
+            }
+            media_type = media_type_map.get(suffix, 'image/jpeg')
+
+            # OpenAI Vision API 格式
+            return {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{media_type};base64,{image_data}"
+                }
+            }
+
+        except Exception as e:
+            print(f"Error encoding image {image_path}: {e}")
+            return None
+
     def _parse_claude_response(self, response_text: str) -> Dict[str, Any]:
         """
         解析Claude的响应
@@ -319,16 +437,28 @@ class HealthDataExtractor:
 """
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
-            )
-
-            return response.content[0].text
+            if self.use_openrouter:
+                # 使用 OpenRouter (OpenAI SDK)
+                response = self.openai_client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+                return response.choices[0].message.content
+            else:
+                # 使用 Anthropic SDK
+                response = self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+                return response.content[0].text
 
         except Exception as e:
             return f"分析时出错: {str(e)}"
@@ -404,16 +534,28 @@ class HealthDataExtractor:
 """
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
-            )
-
-            code = response.content[0].text
+            if self.use_openrouter:
+                # 使用 OpenRouter (OpenAI SDK)
+                response = self.openai_client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+                code = response.choices[0].message.content
+            else:
+                # 使用 Anthropic SDK
+                response = self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+                code = response.content[0].text
 
             # 提取代码块
             if '```python' in code:

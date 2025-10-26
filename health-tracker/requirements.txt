@@ -1,6 +1,9 @@
 # Claude AI
 anthropic>=0.39.0
 
+# OpenAI (for OpenRouter compatibility)
+openai>=1.0.0
+
 # Google Sheets
 gspread>=6.0.0
 google-auth>=2.23.0

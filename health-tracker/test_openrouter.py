@@ -8,6 +8,12 @@ OpenRouter API 连接测试脚本
 import json
 import sys
 from pathlib import Path
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 from anthropic import Anthropic
 
 
@@ -77,8 +83,13 @@ def test_openrouter():
 
     try:
         if base_url:
-            # OpenRouter 需要额外的 headers
-            client = Anthropic(
+            # OpenRouter 使用 OpenAI SDK
+            if not OPENAI_AVAILABLE:
+                print("❌ 错误: 使用 OpenRouter 需要安装 openai 包")
+                print("   请运行: pip install openai")
+                return False
+
+            client = OpenAI(
                 api_key=api_key,
                 base_url=base_url,
                 default_headers={
@@ -86,19 +97,32 @@ def test_openrouter():
                     "X-Title": "Health Tracker"
                 }
             )
+
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=100,
+                messages=[{
+                    "role": "user",
+                    "content": "Hello, please respond with '测试成功' in Chinese."
+                }]
+            )
+
+            result_text = response.choices[0].message.content
+
         else:
+            # Anthropic API
             client = Anthropic(api_key=api_key)
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=100,
-            messages=[{
-                "role": "user",
-                "content": "Hello, please respond with '测试成功' in Chinese."
-            }]
-        )
+            response = client.messages.create(
+                model=model,
+                max_tokens=100,
+                messages=[{
+                    "role": "user",
+                    "content": "Hello, please respond with '测试成功' in Chinese."
+                }]
+            )
 
-        result_text = response.content[0].text
+            result_text = response.content[0].text
 
         print("✅ 连接成功！")
         print()
