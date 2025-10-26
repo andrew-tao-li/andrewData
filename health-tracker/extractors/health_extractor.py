@@ -258,9 +258,37 @@ class HealthDataExtractor:
 - 理解自然语言表达，如"今天68.5公斤"应提取为weight: 68.5
 - 理解情感和主观描述，如"感觉很累但很爽"
 - 如果图片中包含数据（如体重秤截图、健身APP截图），请识别并提取
-- 返回格式必须是有效的JSON
+- **JSON 必须是扁平结构，不要使用嵌套对象**
+- **所有字段都在顶层，不要分组到子对象中**
 
-请直接返回JSON，不要包含任何其他文字说明。
+**JSON 格式示例**（扁平结构）:
+```json
+{{
+  "weight": 68.5,
+  "muscle_mass": 35.2,
+  "sleep_duration": 7.5,
+  "deep_sleep_duration": 1.5,
+  "heart_rate": 60,
+  "mood": "很好",
+  "exercises": [
+    {{"type": "跑步", "duration": 30, "distance": 5}}
+  ]
+}}
+```
+
+**错误示例**（不要这样做）:
+```json
+{{
+  "body_metrics": {{
+    "weight": 68.5
+  }},
+  "sleep": {{
+    "sleep_duration": 7.5
+  }}
+}}
+```
+
+请直接返回扁平的JSON，不要包含任何其他文字说明。
 """
 
     def _encode_image(self, image_path: str) -> Optional[Dict[str, Any]]:
