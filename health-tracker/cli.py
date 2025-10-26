@@ -423,7 +423,7 @@ def recommend(goal: Optional[str]):
 def display_health_data(data: dict):
     """显示健康数据的美化输出"""
     table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("项目", style="cyan", width=20)
+    table.add_column("项目", style="cyan", width=24)
     table.add_column("数值", style="green")
 
     # 日期
@@ -437,12 +437,54 @@ def display_health_data(data: dict):
         table.add_row("体脂率", f"{data['body_fat_percentage']}%")
     if data.get('muscle_mass'):
         table.add_row("肌肉量", f"{data['muscle_mass']} kg")
+    if data.get('basal_metabolism'):
+        table.add_row("基础代谢", f"{data['basal_metabolism']} kcal/天")
+    if data.get('visceral_fat_level'):
+        table.add_row("内脏脂肪等级", str(data['visceral_fat_level']))
+    if data.get('bmi'):
+        table.add_row("BMI", f"{data['bmi']}")
 
     # 睡眠相关
     if data.get('sleep_duration'):
         table.add_row("睡眠时长", f"{data['sleep_duration']} 小时")
+    if data.get('deep_sleep_duration'):
+        table.add_row("深度睡眠", f"{data['deep_sleep_duration']} 小时")
+    if data.get('rem_sleep_duration'):
+        table.add_row("REM睡眠", f"{data['rem_sleep_duration']} 小时")
     if data.get('sleep_quality'):
         table.add_row("睡眠质量", str(data['sleep_quality']))
+    if data.get('urination_count'):
+        table.add_row("夜间排尿", f"{data['urination_count']} 次")
+
+    # 心血管相关
+    if data.get('resting_heart_rate'):
+        table.add_row("静息心率", f"{data['resting_heart_rate']} bpm")
+    if data.get('heart_rate'):
+        table.add_row("心率", f"{data['heart_rate']} bpm")
+    if data.get('hrv'):
+        table.add_row("HRV", str(data['hrv']))
+    if data.get('blood_pressure'):
+        table.add_row("血压", data['blood_pressure'])
+    if data.get('vo2_max'):
+        table.add_row("VO2 Max", str(data['vo2_max']))
+
+    # 疼痛和症状
+    if data.get('pain_score'):
+        table.add_row("疼痛评分", f"{data['pain_score']}/10")
+    if data.get('pain_location'):
+        table.add_row("疼痛部位", data['pain_location'])
+    if data.get('morning_stiffness_duration'):
+        table.add_row("晨僵时间", f"{data['morning_stiffness_duration']} 分钟")
+    if data.get('symptoms'):
+        table.add_row("症状", data['symptoms'])
+
+    # 主观感受
+    if data.get('mood'):
+        table.add_row("心情", str(data['mood']))
+    if data.get('energy_level'):
+        table.add_row("精力水平", str(data['energy_level']))
+    if data.get('overall_feeling'):
+        table.add_row("整体感受", data['overall_feeling'])
 
     # 运动
     if data.get('exercises'):
@@ -452,9 +494,13 @@ def display_health_data(data: dict):
         ])
         table.add_row("运动", exercises_text)
 
-    # 整体感受
-    if data.get('overall_feeling'):
-        table.add_row("整体感受", data['overall_feeling'])
+    # 其他
+    if data.get('steps'):
+        table.add_row("步数", str(data['steps']))
+    if data.get('water_intake'):
+        table.add_row("饮水量", f"{data['water_intake']} ml")
+    if data.get('health_notes'):
+        table.add_row("健康备注", data['health_notes'])
 
     console.print(table)
 

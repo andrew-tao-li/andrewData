@@ -276,7 +276,16 @@ class HealthDataExtractor:
 - **JSON 必须是扁平结构，不要使用嵌套对象**
 - **所有字段都在顶层，不要分组到子对象中**
 
-**JSON 格式示例**（扁平结构）:
+**字段名要求（必须完全一致）**:
+- 内脏脂肪：visceral_fat_level（不是 visceral_fat）
+- 排尿次数：urination_count（不是 night_urination_count）
+- 静息心率：resting_heart_rate（不是 heart_rate，heart_rate 用于运动时心率）
+- 疼痛评分：pain_score（单独字段，不要放在 health_notes 里）
+- 疼痛部位：pain_location（单独字段）
+- 晨僵时间：morning_stiffness_duration（单独字段，单位：分钟）
+- 症状描述：symptoms（单独字段，如"筋膜炎"、"跟腱疼痛"）
+
+**JSON 格式示例**（扁平结构，字段名必须完全一致）:
 ```json
 {{
   "weight": 87.1,
@@ -293,7 +302,7 @@ class HealthDataExtractor:
   "pain_score": 2,
   "pain_location": "跟腱止点",
   "morning_stiffness_duration": 1,
-  "symptoms": "筋膜炎或跟腱疼痛"
+  "symptoms": "筋膜炎、跟腱疼痛"
 }}
 ```
 
