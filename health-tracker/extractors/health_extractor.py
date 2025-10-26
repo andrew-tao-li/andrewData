@@ -33,9 +33,14 @@ class HealthDataExtractor:
 
         if use_openrouter:
             # 使用 OpenRouter
+            # OpenRouter 需要额外的 headers
             self.client = Anthropic(
                 api_key=api_key,
-                base_url="https://openrouter.ai/api/v1"
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/health-tracker",
+                    "X-Title": "Health Tracker"
+                }
             )
             # OpenRouter 使用不同的模型名称格式
             # 如果模型名不包含提供商前缀，自动添加

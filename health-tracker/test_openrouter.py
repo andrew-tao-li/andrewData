@@ -77,7 +77,15 @@ def test_openrouter():
 
     try:
         if base_url:
-            client = Anthropic(api_key=api_key, base_url=base_url)
+            # OpenRouter 需要额外的 headers
+            client = Anthropic(
+                api_key=api_key,
+                base_url=base_url,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/health-tracker",
+                    "X-Title": "Health Tracker"
+                }
+            )
         else:
             client = Anthropic(api_key=api_key)
 
