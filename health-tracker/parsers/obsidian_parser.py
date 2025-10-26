@@ -205,18 +205,23 @@ class ObsidianParser:
 
         return images
 
-    def _resolve_image_path(self, image_path: str, base_path: Path) -> Optional[Path]:
+    def _resolve_image_path(self, image_path: str, base_path: Path) -> Optional[str]:
         """
-        解析图片的完整路径
+        解析图片的完整路径（支持本地文件和远程URL）
 
         Args:
-            image_path: 相对路径
+            image_path: 相对路径或远程URL
             base_path: 基础路径
 
         Returns:
-            完整路径，如果文件不存在返回None
+            完整路径（本地文件）或URL字符串，如果文件不存在返回None
         """
-        # 尝试多个可能的位置
+        # 检测是否为远程URL
+        if image_path.startswith(('http://', 'https://')):
+            # 直接返回远程URL
+            return image_path
+
+        # 本地文件：尝试多个可能的位置
         possible_paths = [
             base_path / image_path,  # 相对于笔记
             self.vault_path / image_path,  # 相对于vault根目录
@@ -227,7 +232,7 @@ class ObsidianParser:
 
         for path in possible_paths:
             if path.exists() and path.is_file():
-                return path
+                return str(path)
 
         return None
 
