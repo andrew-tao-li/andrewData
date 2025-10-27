@@ -21,10 +21,22 @@ def remove_duplicates():
     """清理重复记录"""
     config = load_config()
 
+    # 兼容不同的配置字段名
+    credentials_file = config.get('google_credentials_file') or config.get('google_sheets_credentials')
+    sheet_id = config.get('google_sheet_id')
+
+    if not credentials_file:
+        print("❌ 配置文件中缺少 google_credentials_file 或 google_sheets_credentials")
+        return
+
+    if not sheet_id:
+        print("❌ 配置文件中缺少 google_sheet_id")
+        return
+
     # 初始化 Google Sheets
     sheets = GoogleSheetsStorage(
-        credentials_file=config['google_credentials_file'],
-        spreadsheet_id=config['google_sheet_id']
+        credentials_file=credentials_file,
+        spreadsheet_id=sheet_id
     )
 
     print("🔍 检查重复记录...")
