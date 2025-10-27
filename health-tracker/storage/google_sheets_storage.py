@@ -307,60 +307,83 @@ class GoogleSheetsStorage:
             print(f"删除记录失败: {e}")
             return False
 
-    def batch_save_health_records(self, records: List[Dict[str, Any]]) -> int:
+    def batch_save_health_records(self, records: List[Dict[str, Any]], batch_size: int = 50) -> int:
         """
-        批量保存健康记录
+        批量保存健康记录（带速率限制）
 
         Args:
             records: 记录列表
+            batch_size: 每批处理的记录数（避免API配额限制）
 
         Returns:
             成功保存的数量
         """
+        import time
+
         success_count = 0
+        total = len(records)
 
-        # 获取现有的所有日期
-        existing_dates = set(self.health_sheet.col_values(1)[1:])
+        print(f"开始批量同步 {total} 条记录...")
 
-        # 准备批量更新的数据
-        new_rows = []
-        update_requests = []
+        # 获取现有的所有日期（只调用一次API）
+        dates_column = self.health_sheet.col_values(1)[1:]
+        existing_dates_map = {d: i+2 for i, d in enumerate(dates_column)}  # 日期->行号映射
 
-        for record in records:
-            date_str = record.get('date')
-            if not date_str:
-                continue
+        # 分批处理记录
+        for batch_start in range(0, total, batch_size):
+            batch_end = min(batch_start + batch_size, total)
+            batch_records = records[batch_start:batch_end]
 
-            row_data = self._record_to_row(record)
+            print(f"处理第 {batch_start+1}-{batch_end} 条记录...")
 
-            if date_str in existing_dates:
-                # 需要更新现有行
-                # 为了效率，先收集所有更新请求
-                dates_column = self.health_sheet.col_values(1)[1:]
-                for i, d in enumerate(dates_column, start=2):
-                    if d == date_str:
-                        update_requests.append((i, row_data))
-                        break
-            else:
-                # 新记录
-                new_rows.append(row_data)
+            # 准备批量更新的数据
+            new_rows = []
+            update_data = []  # 批量更新请求
 
-        try:
-            # 批量添加新记录
-            if new_rows:
-                self.health_sheet.append_rows(new_rows)
-                success_count += len(new_rows)
+            for record in batch_records:
+                date_str = record.get('date')
+                if not date_str:
+                    continue
 
-            # 批量更新现有记录
-            for row_num, row_data in update_requests:
-                self.health_sheet.update(f'A{row_num}', [row_data])
-                success_count += 1
+                row_data = self._record_to_row(record)
 
-            return success_count
+                if date_str in existing_dates_map:
+                    # 需要更新现有行
+                    row_num = existing_dates_map[date_str]
+                    # 准备批量更新请求
+                    range_name = f'A{row_num}'
+                    update_data.append({
+                        'range': range_name,
+                        'values': [row_data]
+                    })
+                else:
+                    # 新记录
+                    new_rows.append(row_data)
 
-        except Exception as e:
-            print(f"批量保存失败: {e}")
-            return success_count
+            try:
+                # 批量添加新记录（一次API调用）
+                if new_rows:
+                    self.health_sheet.append_rows(new_rows)
+                    success_count += len(new_rows)
+                    print(f"  ✅ 新增 {len(new_rows)} 条记录")
+
+                # 批量更新现有记录（一次API调用）
+                if update_data:
+                    self.health_sheet.batch_update(update_data)
+                    success_count += len(update_data)
+                    print(f"  ✅ 更新 {len(update_data)} 条记录")
+
+            except Exception as e:
+                print(f"  ❌ 批次失败: {e}")
+
+            # 速率限制：每批之间暂停，避免超过配额（60次/分钟）
+            if batch_end < total:
+                wait_time = 2  # 每批之间等待2秒
+                print(f"  ⏳ 等待 {wait_time} 秒以避免API限速...")
+                time.sleep(wait_time)
+
+        print(f"✅ 批量同步完成！成功 {success_count}/{total} 条")
+        return success_count
 
     def get_spreadsheet_info(self) -> Dict[str, Any]:
         """
