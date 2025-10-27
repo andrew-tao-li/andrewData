@@ -29,6 +29,13 @@ class HealthDataImporter:
             db_path: SQLite数据库路径
         """
         self.db_path = db_path
+
+        # 确保数据库目录存在
+        db_dir = Path(db_path).parent
+        if db_dir and not db_dir.exists():
+            db_dir.mkdir(parents=True, exist_ok=True)
+            print(f"创建数据库目录: {db_dir}")
+
         self.conn = sqlite3.connect(db_path)
 
         # 字段映射：CSV列名 → 数据库字段名
