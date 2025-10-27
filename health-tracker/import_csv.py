@@ -64,9 +64,9 @@ class HealthDataImporter:
             '晨僵持续时间(分钟)': 'morning_stiffness_duration',
             '最疼部位': 'pain_location',
 
-            # 备注
+            # 备注（QA备注也合并到health_notes）
             '备注': 'health_notes',
-            'QA备注': 'qa_notes',
+            'QA备注': 'health_notes',
         }
 
     def parse_time_duration(self, time_str: str) -> Optional[float]:
@@ -198,6 +198,10 @@ class HealthDataImporter:
         # 合并所有行的数据（优先取第一个非空值）
         for csv_col, db_col in self.field_mapping.items():
             if csv_col not in group.columns:
+                continue
+
+            # 跳过备注字段（在后面单独处理）
+            if csv_col in ['备注', 'QA备注']:
                 continue
 
             # 获取第一个非空值
