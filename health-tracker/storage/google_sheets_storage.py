@@ -307,7 +307,7 @@ class GoogleSheetsStorage:
             print(f"删除记录失败: {e}")
             return False
 
-    def batch_save_health_records(self, records: List[Dict[str, Any]], batch_size: int = 20) -> int:
+    def batch_save_health_records(self, records: List[Dict[str, Any]], batch_size: int = 10) -> int:
         """
         批量保存健康记录（带速率限制）
 
@@ -326,15 +326,21 @@ class GoogleSheetsStorage:
         print(f"开始批量同步 {total} 条记录...")
 
         # 获取现有的所有日期（只调用一次API）
+        print("读取云端现有记录...")
         dates_column = self.health_sheet.col_values(1)[1:]
         existing_dates_map = {d: i+2 for i, d in enumerate(dates_column)}  # 日期->行号映射
+        print(f"云端已有 {len(existing_dates_map)} 条记录")
+
+        # 等待一下，避免初始读取就消耗配额
+        print("⏳ 等待5秒...")
+        time.sleep(5)
 
         # 分批处理记录
         for batch_start in range(0, total, batch_size):
             batch_end = min(batch_start + batch_size, total)
             batch_records = records[batch_start:batch_end]
 
-            print(f"处理第 {batch_start+1}-{batch_end} 条记录...")
+            print(f"\n处理第 {batch_start+1}-{batch_end} 条记录...")
 
             # 准备批量更新的数据
             new_rows = []
@@ -359,6 +365,8 @@ class GoogleSheetsStorage:
                 else:
                     # 新记录
                     new_rows.append(row_data)
+                    # 更新映射，避免重复添加
+                    existing_dates_map[date_str] = len(existing_dates_map) + 2
 
             try:
                 # 批量添加新记录（一次API调用）
@@ -374,11 +382,16 @@ class GoogleSheetsStorage:
                     print(f"  ✅ 更新 {len(update_data)} 条记录")
 
             except Exception as e:
+                error_str = str(e)
                 print(f"  ❌ 批次失败: {e}")
+                # 如果是限速错误，等待更长时间
+                if "429" in error_str or "Quota exceeded" in error_str:
+                    print(f"  ⏳ 触发API限速，等待60秒后继续...")
+                    time.sleep(60)
 
             # 速率限制：每批之间暂停，避免超过配额（60次/分钟）
             if batch_end < total:
-                wait_time = 15  # 每批之间等待15秒，确保不超过API配额
+                wait_time = 30  # 每批之间等待30秒，非常保守的策略
                 print(f"  ⏳ 等待 {wait_time} 秒以避免API限速...")
                 time.sleep(wait_time)
 

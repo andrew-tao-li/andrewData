@@ -30,12 +30,13 @@ class SyncManager:
         self.sheets = google_sheets_storage
         self.sync_enabled = google_sheets_storage is not None
 
-    def push_to_cloud(self, date_str: Optional[str] = None) -> Dict[str, Any]:
+    def push_to_cloud(self, date_str: Optional[str] = None, sync_all: bool = False) -> Dict[str, Any]:
         """
         推送本地数据到云端
 
         Args:
-            date_str: 指定日期（如果为None则同步所有数据）
+            date_str: 指定日期（如果为None则同步未同步的记录）
+            sync_all: 是否同步所有记录（默认False，只同步未同步的）
 
         Returns:
             同步结果统计
@@ -49,6 +50,8 @@ class SyncManager:
                 record = self.sqlite.get_health_record(date_str)
                 if record:
                     success = self.sheets.save_health_record(record)
+                    if success:
+                        self.sqlite.mark_as_synced(date_str)
                     return {
                         'success': success,
                         'synced': 1 if success else 0,
@@ -57,9 +60,26 @@ class SyncManager:
                 else:
                     return {'error': f'本地未找到{date_str}的记录'}
             else:
-                # 同步所有记录
-                records = self.sqlite.get_health_records()
+                # 增量同步：只同步未同步的记录
+                if sync_all:
+                    records = self.sqlite.get_health_records()
+                    print(f"同步所有 {len(records)} 条记录...")
+                else:
+                    records = self.sqlite.get_unsynced_records()
+                    print(f"增量同步：发现 {len(records)} 条未同步记录")
+
+                if not records:
+                    return {
+                        'success': True,
+                        'message': '没有需要同步的记录',
+                        'synced': 0
+                    }
+
                 synced_count = self.sheets.batch_save_health_records(records)
+
+                # 标记已同步的记录
+                for record in records[:synced_count]:
+                    self.sqlite.mark_as_synced(record['date'])
 
                 return {
                     'success': True,
