@@ -541,6 +541,81 @@ class HealthDatabase:
 
         return records
 
+    def get_health_record(self, date: str) -> Optional[Dict[str, Any]]:
+        """
+        获取指定日期的健康记录（别名方法，用于sync_manager兼容）
+
+        Args:
+            date: 日期字符串 (YYYY-MM-DD)
+
+        Returns:
+            健康记录字典
+        """
+        return self.get_record_by_date(date)
+
+    def get_health_records(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取健康记录（别名方法，用于sync_manager兼容）
+
+        Args:
+            start_date: 开始日期（可选）
+            end_date: 结束日期（可选）
+            limit: 限制记录数（可选）
+
+        Returns:
+            健康记录列表
+        """
+        cursor = self.conn.cursor()
+
+        if start_date and end_date:
+            # 有日期范围
+            cursor.execute("""
+                SELECT * FROM health_records
+                WHERE date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (start_date, end_date))
+        elif start_date:
+            # 只有开始日期
+            cursor.execute("""
+                SELECT * FROM health_records
+                WHERE date >= ?
+                ORDER BY date DESC
+            """, (start_date,))
+        else:
+            # 获取所有记录
+            cursor.execute("""
+                SELECT * FROM health_records
+                ORDER BY date DESC
+            """)
+
+        # 应用limit
+        if limit:
+            rows = cursor.fetchmany(limit)
+        else:
+            rows = cursor.fetchall()
+
+        records = []
+        for row in rows:
+            record = dict(row)
+            date = record['date']
+
+            # 获取运动记录
+            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+            record['exercises'] = [dict(r) for r in cursor.fetchall()]
+
+            # 获取饮食记录
+            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+            record['meals'] = [dict(r) for r in cursor.fetchall()]
+
+            records.append(record)
+
+        return records
+
     def close(self):
         """关闭数据库连接"""
         if self.conn:

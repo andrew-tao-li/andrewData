@@ -4,7 +4,7 @@
 协调本地SQLite数据库和Google Sheets之间的双向同步
 """
 
-from storage.sqlite_storage import SQLiteStorage
+from storage.sqlite_storage import HealthDatabase
 from storage.google_sheets_storage import GoogleSheetsStorage
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
@@ -16,7 +16,7 @@ class SyncManager:
 
     def __init__(
         self,
-        sqlite_storage: SQLiteStorage,
+        sqlite_storage: HealthDatabase,
         google_sheets_storage: Optional[GoogleSheetsStorage] = None
     ):
         """
