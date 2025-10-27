@@ -307,7 +307,7 @@ class GoogleSheetsStorage:
             print(f"删除记录失败: {e}")
             return False
 
-    def batch_save_health_records(self, records: List[Dict[str, Any]], batch_size: int = 50) -> int:
+    def batch_save_health_records(self, records: List[Dict[str, Any]], batch_size: int = 20) -> int:
         """
         批量保存健康记录（带速率限制）
 
@@ -378,7 +378,7 @@ class GoogleSheetsStorage:
 
             # 速率限制：每批之间暂停，避免超过配额（60次/分钟）
             if batch_end < total:
-                wait_time = 2  # 每批之间等待2秒
+                wait_time = 15  # 每批之间等待15秒，确保不超过API配额
                 print(f"  ⏳ 等待 {wait_time} 秒以避免API限速...")
                 time.sleep(wait_time)
 
