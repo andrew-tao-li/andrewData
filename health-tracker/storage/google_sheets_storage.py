@@ -344,6 +344,7 @@ class GoogleSheetsStorage:
 
             # 准备批量更新的数据
             new_rows = []
+            new_row_dates = []  # 记录新行的日期
             update_data = []  # 批量更新请求
 
             for record in batch_records:
@@ -363,10 +364,17 @@ class GoogleSheetsStorage:
                         'values': [row_data]
                     })
                 else:
-                    # 新记录
-                    new_rows.append(row_data)
-                    # 更新映射，避免重复添加
-                    existing_dates_map[date_str] = len(existing_dates_map) + 2
+                    # 新记录 - 检查是否在本批次中已添加
+                    if date_str not in new_row_dates:
+                        new_rows.append(row_data)
+                        new_row_dates.append(date_str)
+                        # 预计算新行的行号（当前总行数 + 已添加的新行数）
+                        new_row_num = len(existing_dates_map) + len(new_row_dates) + 1
+                        existing_dates_map[date_str] = new_row_num
+                    else:
+                        # 本批次中已经添加过这个日期，转为更新操作
+                        idx = new_row_dates.index(date_str)
+                        new_rows[idx] = row_data  # 更新该行数据
 
             try:
                 # 批量添加新记录（一次API调用）
