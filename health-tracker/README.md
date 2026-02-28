@@ -7,26 +7,47 @@
 ## ✨ 功能特点
 
 - 📝 **自动解析 Obsidian 笔记** - 支持自然语言描述和图片截图
+- 🏃 **Garmin 数据自动同步** - 每天自动获取睡眠、HRV、心率、运动数据
 - 🧠 **Claude AI 智能提取** - 理解上下文，提取结构化数据
 - 📸 **图片智能识别** - 自动识别体重秤、健身 APP 截图
 - 💾 **本地 SQLite 存储** - 快速查询，离线可用
 - ☁️ **Google Sheets 云同步** - 跨设备访问，数据备份
-- 📊 **智能分析建议** - Claude 生成个性化健康洞察
+- 📊 **智能分析建议** - Claude 生成个性化健康洞察（7天/30天趋势）
 - 💬 **智能问答** - 随时询问健康数据相关问题
 - 🖥️ **跨平台** - macOS、Windows、Linux 全支持
 
 ## 🏗️ 系统架构
 
 ```
-Obsidian 笔记 (文本 + 图片)
-    ↓
-Python 解析器
-    ↓
-Claude AI 提取 → 理解上下文、识别图片、生成洞察
-    ↓
-本地 SQLite (快速查询、离线可用)
-    ↓
-Google Sheets (云端备份、跨设备访问)
+┌─────────────────────┐     ┌─────────────────────┐
+│  Obsidian 笔记      │     │   Garmin 手表       │
+│  (文本 + 图片)      │     │   (睡眠/HRV/运动)   │
+└──────────┬──────────┘     └──────────┬──────────┘
+           │                           │
+           │  手动记录                 │  自动同步
+           │                           │
+           ▼                           ▼
+    ┌──────────────────────────────────────┐
+    │        Python 解析器 + AI 提取        │
+    │  • Claude AI 智能理解                │
+    │  • Garmin Client 数据获取            │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+    ┌──────────────────────────────────────┐
+    │      本地 SQLite 数据库               │
+    │  • health_records (睡眠/HRV/心率)    │
+    │  • exercises (运动记录)              │
+    └──────────────┬───────────────────────┘
+                   │
+           ┌───────┴───────┐
+           │               │
+           ▼               ▼
+    ┌─────────────┐  ┌──────────────┐
+    │  Obsidian   │  │Google Sheets │
+    │  自动写入    │  │  云端同步    │
+    │  + AI 分析  │  │  跨设备访问  │
+    └─────────────┘  └──────────────┘
 ```
 
 ## 🚀 快速开始
@@ -123,6 +144,11 @@ health-tracker/
 ├── extractors/       # Claude 数据提取
 ├── storage/          # SQLite 数据库操作
 ├── sync/             # Google Sheets 同步
+├── garmin/           # Garmin 集成模块
+│   ├── garmin_client.py     # Garmin 数据获取
+│   ├── obsidian_writer.py   # Obsidian 自动写入
+│   ├── health_analyzer.py   # 健康分析
+│   └── scheduler.py         # 定时调度器
 ├── analytics/        # 数据分析和洞察
 ├── config/           # 配置文件
 ├── tests/            # 测试文件
@@ -145,6 +171,7 @@ health-tracker/
 - **[QUICKSTART.md](QUICKSTART.md)** - 5 分钟快速上手
 - **[INSTALLATION.md](INSTALLATION.md)** - 详细的跨平台安装指南
 - **[SETUP.md](SETUP.md)** - 完整配置说明
+- **[GARMIN_SETUP.md](GARMIN_SETUP.md)** - 🆕 Garmin 自动同步配置指南
 - **[EXAMPLES.md](EXAMPLES.md)** - 10 个实际使用场景
 - **[FAQ.md](FAQ.md)** - 常见问题解答
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - 贡献指南

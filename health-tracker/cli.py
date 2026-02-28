@@ -515,5 +515,135 @@ def period_name(period: str) -> str:
     return names.get(period, period)
 
 
+@cli.command()
+@click.option('--date', default='yesterday', help='同步日期 (YYYY-MM-DD, today, yesterday)')
+@click.option('--force', is_flag=True, help='强制重新同步')
+def garmin_sync(date: str, force: bool):
+    """从 Garmin 同步健康数据"""
+    from datetime import datetime
+    from garmin.garmin_client import GarminClient
+    from garmin.obsidian_writer import ObsidianWriter
+    from garmin.health_analyzer import HealthAnalyzer
+
+    config = load_config()
+    date_obj = datetime.fromisoformat(get_date(date))
+
+    console.print(f"\n[bold cyan]🔄 正在同步 Garmin 数据 ({date_obj.strftime('%Y-%m-%d')})...[/bold cyan]\n")
+
+    try:
+        # 初始化 Garmin 客户端
+        garmin = GarminClient(
+            email=config['garmin_email'],
+            password=config['garmin_password'],
+            is_china=config.get('garmin_is_china', True)
+        )
+
+        # 获取数据
+        data = garmin.get_daily_summary(date_obj)
+
+        if not data:
+            console.print("[red]✗ 获取 Garmin 数据失败[/red]")
+            return
+
+        # 验证数据
+        required_fields = config.get('garmin_required_fields', ['sleep_duration', 'hrv'])
+        if not garmin.validate_data(data, required_fields):
+            console.print("[yellow]⚠️  数据不完整，但仍会保存[/yellow]")
+
+        # 保存到数据库
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+
+        health_record = {
+            'date': data['date'],
+            'sleep_duration': data['sleep'].get('sleep_duration') if data.get('sleep') else None,
+            'deep_sleep_duration': data['sleep'].get('deep_sleep_duration') if data.get('sleep') else None,
+            'rem_sleep_duration': data['sleep'].get('rem_sleep_duration') if data.get('sleep') else None,
+            'hrv': data['hrv'].get('hrv') if data.get('hrv') else None,
+            'resting_heart_rate': data['heart_rate'].get('resting_heart_rate') if data.get('heart_rate') else None,
+        }
+
+        db.save_health_record(health_record)
+
+        # 保存运动记录
+        if data.get('activities'):
+            for activity in data['activities']:
+                exercise_data = {
+                    'date': data['date'],
+                    'type': activity.get('type'),
+                    'duration': int(activity.get('duration', 0)),
+                    'distance': activity.get('distance'),
+                    'calories': activity.get('calories'),
+                }
+                db.save_exercise(exercise_data)
+
+        # 写入 Obsidian
+        obsidian = ObsidianWriter(
+            vault_path=config['obsidian_vault_path'],
+            health_log_start=config.get('health_log_section_start', '（健康日志）'),
+            health_log_end=config.get('health_log_section_end', '（健康日志结束）')
+        )
+
+        create_if_missing = config.get('create_daily_note_if_missing', True)
+        obsidian.write_health_log(date_obj, data, create_if_missing)
+
+        # 生成分析
+        extractor = create_extractor(config)
+        analyzer = HealthAnalyzer(db, extractor)
+
+        brief_analysis = analyzer.generate_brief_summary(days=7)
+        obsidian.append_analysis(date_obj, brief_analysis)
+
+        console.print("[green]✓ Garmin 数据同步成功！[/green]")
+
+    except Exception as e:
+        console.print(f"[red]✗ 同步失败: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+def garmin_test():
+    """测试 Garmin 连接"""
+    from garmin.garmin_client import GarminClient
+
+    config = load_config()
+
+    console.print("\n[bold cyan]🔍 测试 Garmin 连接...[/bold cyan]\n")
+
+    try:
+        garmin = GarminClient(
+            email=config['garmin_email'],
+            password=config['garmin_password'],
+            is_china=config.get('garmin_is_china', True)
+        )
+
+        if garmin.authenticate():
+            console.print("[green]✓ Garmin 认证成功！[/green]")
+            console.print(f"[cyan]账号: {config['garmin_email']}[/cyan]")
+        else:
+            console.print("[red]✗ Garmin 认证失败[/red]")
+
+    except Exception as e:
+        console.print(f"[red]✗ 测试失败: {str(e)}[/red]")
+
+
+@cli.command()
+def start_scheduler():
+    """启动 Garmin 自动同步调度器"""
+    from garmin.scheduler import GarminScheduler
+
+    console.print("\n[bold cyan]🚀 启动 Garmin 自动同步调度器...[/bold cyan]\n")
+
+    try:
+        scheduler = GarminScheduler()
+        scheduler.start()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]调度器已停止[/yellow]")
+    except Exception as e:
+        console.print(f"[red]✗ 启动失败: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == '__main__':
     cli()
