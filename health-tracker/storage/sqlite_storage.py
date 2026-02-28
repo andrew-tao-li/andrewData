@@ -301,6 +301,48 @@ class HealthDatabase:
             self.conn.rollback()
             return False
 
+    def save_exercise(self, data: Dict[str, Any]) -> bool:
+        """
+        保存运动记录
+
+        Args:
+            data: 运动数据字典
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            date = data.get('date')
+            if not date:
+                print("Error: No date provided for exercise")
+                return False
+
+            cursor = self.conn.cursor()
+
+            # 插入运动记录
+            cursor.execute("""
+                INSERT INTO exercises
+                (date, type, duration, distance, intensity, calories, feeling, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                date,
+                data.get('type'),
+                data.get('duration'),
+                data.get('distance'),
+                data.get('intensity'),
+                data.get('calories'),
+                data.get('feeling'),
+                data.get('notes')
+            ))
+
+            self.conn.commit()
+            return True
+
+        except Exception as e:
+            print(f"Error saving exercise: {e}")
+            self.conn.rollback()
+            return False
+
     def get_record_by_date(self, date: str) -> Optional[Dict[str, Any]]:
         """
         获取指定日期的记录

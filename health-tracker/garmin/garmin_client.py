@@ -56,6 +56,8 @@ class GarminClient:
                 garth.resume(str(user_token_dir))
                 self.garmin = Garmin()
                 self.garmin.garth = garth.client
+                # 获取用户信息（必需，否则某些 API 会失败）
+                self.garmin.login()
                 self._authenticated = True
                 print(f"✓ 使用已保存的令牌登录成功")
                 return True
@@ -69,6 +71,8 @@ class GarminClient:
             # 初始化 Garmin 客户端
             self.garmin = Garmin()
             self.garmin.garth = garth.client
+            # 获取用户信息（必需，否则某些 API 会失败）
+            self.garmin.login()
             self._authenticated = True
 
             print(f"✓ Garmin 认证成功: {self.email}")
