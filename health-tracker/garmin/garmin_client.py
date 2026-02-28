@@ -26,6 +26,12 @@ class GarminClient:
             is_china: 是否使用 Garmin 中国（garmin.com.cn）
             tokens_dir: 认证令牌存储目录
         """
+        # 验证必需参数
+        if not email or not password:
+            raise ValueError("Garmin email and password are required")
+        if password in ["YOUR_PASSWORD_HERE", "your-garmin-password"]:
+            raise ValueError("Please set your actual Garmin password in config.json")
+
         self.email = email
         self.password = password
         self.is_china = is_china

@@ -532,11 +532,16 @@ def garmin_sync(date: str, force: bool):
 
     try:
         # 初始化 Garmin 客户端
-        garmin = GarminClient(
-            email=config['garmin_email'],
-            password=config['garmin_password'],
-            is_china=config.get('garmin_is_china', True)
-        )
+        try:
+            garmin = GarminClient(
+                email=config.get('garmin_email'),
+                password=config.get('garmin_password'),
+                is_china=config.get('garmin_is_china', True)
+            )
+        except ValueError as e:
+            console.print(f"[red]✗ 配置错误: {str(e)}[/red]")
+            console.print("[yellow]请编辑 config/config.json 文件，填入正确的 Garmin 用户名和密码[/yellow]")
+            return
 
         # 获取数据
         data = garmin.get_daily_summary(date_obj)
