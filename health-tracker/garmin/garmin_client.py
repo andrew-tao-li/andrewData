@@ -26,6 +26,12 @@ class GarminClient:
             is_china: 是否使用 Garmin 中国（garmin.com.cn）
             tokens_dir: 认证令牌存储目录
         """
+        # 调试信息
+        print(f"[DEBUG] GarminClient 初始化:")
+        print(f"  - email: {email}")
+        print(f"  - password: {'*' * len(password) if password else '(空)'}")
+        print(f"  - is_china: {is_china}")
+
         # 验证必需参数
         if not email or not password:
             raise ValueError("Garmin email and password are required")
@@ -71,6 +77,9 @@ class GarminClient:
                 print(f"加载令牌失败: {e}，重新登录...")
 
             # 新登录
+            print(f"[DEBUG] 调用 garth.login():")
+            print(f"  - self.email: {self.email}")
+            print(f"  - self.password: {'*' * len(self.password) if self.password else '(空)'}")
             garth.login(self.email, self.password)
             garth.save(str(user_token_dir))
 

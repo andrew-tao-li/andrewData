@@ -37,6 +37,9 @@ def load_config() -> dict:
         console.print("[yellow]参考 config/config.example.json 创建配置文件[/yellow]")
         sys.exit(1)
 
+    # 显示正在加载的配置文件路径
+    console.print(f"[dim]📁 加载配置文件: {config_path.absolute()}[/dim]")
+
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
