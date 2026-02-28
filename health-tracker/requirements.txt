@@ -20,6 +20,11 @@ Pillow>=10.0.0
 matplotlib>=3.7.0
 pandas>=2.0.0
 
+# Garmin Integration
+garth>=0.6.0
+garminconnect>=0.2.0
+APScheduler>=3.10.0
+
 # Utilities
 python-dotenv>=1.0.0
 schedule>=1.2.0

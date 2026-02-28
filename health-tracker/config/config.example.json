@@ -24,6 +24,20 @@
   "google_sheets_credentials": "config/google-credentials.json",
   "google_sheet_id": "your-google-sheet-id",
 
+  "_comment_garmin": "Garmin 配置（自动同步健康数据）",
+  "garmin_email": "your-garmin-email@example.com",
+  "garmin_password": "your-garmin-password",
+  "garmin_is_china": true,
+  "garmin_sync_time": "12:00",
+  "garmin_retry_hours": [13, 14, 15, 16, 17, 18],
+  "garmin_required_fields": ["sleep_duration", "hrv"],
+
+  "_comment_obsidian_write": "Obsidian 写入配置",
+  "create_daily_note_if_missing": true,
+  "health_log_section_start": "（健康日志）",
+  "health_log_section_end": "（健康日志结束）",
+  "analysis_folder": "Health/分析",
+
   "_comment_other": "其他配置",
   "database_path": "health_data.db",
   "sync_interval_hours": 24
