@@ -55,38 +55,17 @@ class GarminClient:
             是否认证成功
         """
         try:
-            # 设置 Garmin 域名（中国 vs 国际）
-            if self.is_china:
-                garth.configure(domain="garmin.cn")
+            print(f"[DEBUG] 开始认证 - 使用简化方式（Garmin 类直接认证）")
 
-            # 为当前用户创建专用的 token 目录
-            user_token_dir = self.tokens_dir / self.email.replace('@', '_at_')
-            user_token_dir.mkdir(parents=True, exist_ok=True)
+            # 使用 Garmin 类的直接认证方式
+            # 这样会自动处理 garth 的配置和 token 管理
+            self.garmin = Garmin(
+                email=self.email,
+                password=self.password,
+                is_cn=self.is_china
+            )
 
-            # 尝试恢复已保存的会话
-            try:
-                garth.resume(str(user_token_dir))
-                self.garmin = Garmin()
-                self.garmin.garth = garth.client
-                # 获取用户信息（必需，否则某些 API 会失败）
-                self.garmin.login()
-                self._authenticated = True
-                print(f"✓ 使用已保存的令牌登录成功")
-                return True
-            except Exception as e:
-                print(f"加载令牌失败: {e}，重新登录...")
-
-            # 新登录
-            print(f"[DEBUG] 调用 garth.login():")
-            print(f"  - self.email: {self.email}")
-            print(f"  - self.password: {'*' * len(self.password) if self.password else '(空)'}")
-            garth.login(self.email, self.password)
-            garth.save(str(user_token_dir))
-
-            # 初始化 Garmin 客户端
-            self.garmin = Garmin()
-            self.garmin.garth = garth.client
-            # 获取用户信息（必需，否则某些 API 会失败）
+            # 登录
             self.garmin.login()
             self._authenticated = True
 
@@ -98,6 +77,8 @@ class GarminClient:
             return False
         except Exception as e:
             print(f"✗ 认证过程出错: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def get_sleep_data(self, date: datetime) -> Optional[Dict[str, Any]]:
