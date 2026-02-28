@@ -9,8 +9,13 @@
 ### 1. 自动数据同步
 - **时间**：每天中午 12:00 自动执行
 - **来源**：Garmin 中国云端 (garmin.com.cn)
-- **数据**：睡眠报告（深度睡眠、REM）、HRV、静息心率、夜间心率
+- **数据**：
+  - 睡眠报告（深度睡眠、REM、睡眠时长、睡眠评分）
+  - HRV（心率变异性、周平均值、状态）
+  - 心率（静息心率、夜间平均心率）
+  - 运动记录（跑步、椭圆机、骑行等活动类型、时长、距离、卡路里、平均心率）
 - **必需字段**：睡眠数据和 HRV（缺失必须报错）
+- **可选字段**：运动数据（如当天无运动则为空）
 
 ### 2. 数据存储
 - **SQLite**：本地数据库（主存储）
@@ -25,9 +30,10 @@
   - 单独笔记：详细分析报告
 
 ### 4. 数据优先级
-- **Garmin 数据优先**：睡眠、HRV、心率字段
+- **Garmin 数据优先**：睡眠、HRV、心率、运动记录
 - **手动输入保留**：体重、肌肉量、内脏脂肪等身体成分
 - **智能合并**：Garmin + 手动数据组合成完整记录
+- **运动数据处理**：获取前一天的所有运动记录，自动写入数据库 exercises 表
 
 ### 5. 错误处理
 - 12:00 首次尝试获取数据
@@ -151,11 +157,14 @@ class GarminClient:
     def get_hrv_data(date) -> dict
         # 返回：hrv, weekly_average, status
     def get_heart_rate_data(date) -> dict
-        # 返回：resting_hr, average_hr
+        # 返回：resting_hr, average_hr, night_avg_hr
+    def get_activities(date) -> list
+        # 返回：运动记录列表
+        # 每条记录：{type, duration, distance, calories, avg_hr, start_time}
     def get_today_summary(date) -> dict
-        # 合并所有数据
+        # 合并所有数据（睡眠 + HRV + 心率 + 运动）
     def validate_data(data) -> bool
-        # 检查必需字段
+        # 检查必需字段（睡眠和HRV）
 ```
 
 #### 2.2 Obsidian 写入器 (`garmin/obsidian_writer.py`)
@@ -200,8 +209,15 @@ HRV_ms：{hrv}
 晨僵时长_min：{stiffness_duration}
 最疼部位：{pain_location}
 眼部不适：{eye_symptoms}
+
+**运动记录**：
+{exercise_list}
 （健康日志结束）
 ```
+
+**运动记录格式：**
+- 如有运动：显示列表，如 "跑步 5.2km 30分钟 (平均心率 145bpm)"
+- 无运动：显示 "今日无运动记录"
 
 #### 2.3 健康分析器 (`garmin/health_analyzer.py`)
 
@@ -318,29 +334,37 @@ def garmin_test():
   ↓
 3. 获取 HRV 数据
   ↓
-4. 验证必需字段
+4. 获取心率数据（静息心率、夜间平均心率）
+  ↓
+5. 获取运动记录（跑步、椭圆机等）
+  ↓
+6. 验证必需字段（睡眠 + HRV）
   ├─ 成功 → 继续
   └─ 失败 → 等待1小时重试
   ↓
-5. 保存到 SQLite
+7. 保存到 SQLite
+  ├─ health_records 表：睡眠、HRV、心率
+  └─ exercises 表：运动记录
   ↓
-6. 检查当天 Obsidian 日记
+8. 检查当天 Obsidian 日记
   ├─ 存在 → 读取现有内容
   └─ 不存在 → 创建新日记
   ↓
-7. 写入健康日志
-  ├─ Garmin 数据：睡眠、HRV、心率
+9. 写入健康日志
+  ├─ Garmin 数据：睡眠、HRV、心率、运动
   └─ 手动数据：体重等（保留或占位）
   ↓
-8. 生成 7天/30天 分析
+10. 生成 7天/30天 分析
   ↓
-9. 在日记末尾添加简要分析
+11. 在日记末尾添加简要分析
   ↓
-10. 创建/更新详细分析笔记
+12. 创建/更新详细分析笔记
   ↓
-11. 同步到 Google Sheets
+13. 同步到 Google Sheets
+  ├─ health_records 数据
+  └─ exercises 数据
   ↓
-12. 记录成功日志
+14. 记录成功日志
 ```
 
 ### 错误重试流程
