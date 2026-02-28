@@ -54,7 +54,7 @@ class GarminClient:
                     with open(tokens_file, 'r') as f:
                         tokens = json.load(f)
                     garth.resume(tokens)
-                    self.garmin = Garmin(session_data=garth.to_dict())
+                    self.garmin = Garmin(session_data=garth.dump())
                     self._authenticated = True
                     print(f"✓ 使用已保存的令牌登录成功")
                     return True
@@ -65,7 +65,7 @@ class GarminClient:
             garth.login(self.email, self.password)
 
             # 保存令牌
-            tokens = garth.to_dict()
+            tokens = garth.dump()
             with open(tokens_file, 'w') as f:
                 json.dump(tokens, f)
 
