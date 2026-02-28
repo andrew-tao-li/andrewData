@@ -11,8 +11,19 @@ from pathlib import Path
 # 添加当前目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config.config import load_config
 from garmin.garmin_client import GarminClient
+
+
+def load_config():
+    """加载配置文件"""
+    config_path = Path(__file__).parent / "config" / "config.json"
+
+    if not config_path.exists():
+        print(f"配置文件不存在: {config_path}")
+        sys.exit(1)
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 
 def print_json(data, title):
@@ -26,13 +37,12 @@ def print_json(data, title):
 def main():
     # 加载配置
     config = load_config()
-    garmin_config = config.get('garmin', {})
 
     # 创建客户端
     client = GarminClient(
-        email=garmin_config['email'],
-        password=garmin_config['password'],
-        is_china=garmin_config.get('is_china', True)
+        email=config.get('garmin_email'),
+        password=config.get('garmin_password'),
+        is_china=config.get('garmin_is_china', True)
     )
 
     # 认证
