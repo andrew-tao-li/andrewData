@@ -47,30 +47,26 @@ class GarminClient:
             if self.is_china:
                 garth.configure(domain="garmin.cn")
 
-            # 尝试加载已保存的令牌
-            tokens_file = self.tokens_dir / f"{self.email}.json"
-            if tokens_file.exists():
-                try:
-                    with open(tokens_file, 'r') as f:
-                        tokens = json.load(f)
-                    garth.resume(tokens)
-                    self.garmin = Garmin(session_data=garth.dump())
-                    self._authenticated = True
-                    print(f"✓ 使用已保存的令牌登录成功")
-                    return True
-                except Exception as e:
-                    print(f"加载令牌失败: {e}，重新登录...")
+            # 为当前用户创建专用的 token 目录
+            user_token_dir = self.tokens_dir / self.email.replace('@', '_at_')
+            user_token_dir.mkdir(parents=True, exist_ok=True)
+
+            # 尝试恢复已保存的会话
+            try:
+                garth.resume(str(user_token_dir))
+                self.garmin = Garmin()
+                self._authenticated = True
+                print(f"✓ 使用已保存的令牌登录成功")
+                return True
+            except Exception as e:
+                print(f"加载令牌失败: {e}，重新登录...")
 
             # 新登录
             garth.login(self.email, self.password)
-
-            # 保存令牌
-            tokens = garth.dump()
-            with open(tokens_file, 'w') as f:
-                json.dump(tokens, f)
+            garth.save(str(user_token_dir))
 
             # 初始化 Garmin 客户端
-            self.garmin = Garmin(session_data=tokens)
+            self.garmin = Garmin()
             self._authenticated = True
 
             print(f"✓ Garmin 认证成功: {self.email}")
