@@ -52,7 +52,9 @@ class HealthDatabase:
                 sleep_end TEXT,
                 sleep_quality TEXT,
                 deep_sleep_duration REAL,
+                light_sleep_duration REAL,
                 rem_sleep_duration REAL,
+                awake_duration REAL,
                 sleep_notes TEXT,
 
                 -- 心血管相关
@@ -201,7 +203,9 @@ class HealthDatabase:
                 'sleep_end': data.get('sleep_end'),
                 'sleep_quality': str(data.get('sleep_quality')) if data.get('sleep_quality') else None,
                 'deep_sleep_duration': data.get('deep_sleep_duration'),
+                'light_sleep_duration': data.get('light_sleep_duration'),
                 'rem_sleep_duration': data.get('rem_sleep_duration'),
+                'awake_duration': data.get('awake_duration'),
                 'sleep_notes': data.get('sleep_notes'),
                 # 心血管相关
                 'heart_rate': data.get('heart_rate'),
