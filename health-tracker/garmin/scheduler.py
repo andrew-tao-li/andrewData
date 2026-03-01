@@ -193,21 +193,13 @@ class GarminScheduler:
                 self.db.save_exercise(exercise_data)
 
     def _generate_and_save_analysis(self, date: datetime):
-        """生成并保存健康分析"""
+        """生成并保存健康分析（每日简要分析）"""
         try:
-            # 生成7天简要分析
+            # 生成7天简要分析，追加到当天日记
             brief_analysis = self.health_analyzer.generate_brief_summary(days=7)
             self.obsidian_writer.append_analysis(date, brief_analysis)
-
-            # 生成30天详细分析（每周更新一次）
-            if date.weekday() == 6:  # 周日
-                detailed_analysis = self.health_analyzer.generate_detailed_analysis(days=30)
-                period = date.strftime('%Y-%m')
-                analysis_folder = self.config.get('analysis_folder', 'Health/分析')
-                self.obsidian_writer.create_analysis_note(period, detailed_analysis, analysis_folder)
-
         except Exception as e:
-            logger.warning(f"生成分析失败: {e}")
+            logger.warning(f"生成每日分析失败: {e}")
 
     def _sync_to_google_sheets(self, date_str: str):
         """同步数据到 Google Sheets"""
@@ -255,9 +247,67 @@ class GarminScheduler:
         """发送错误通知（占位，可扩展）"""
         logger.error(f"⚠️ {date.strftime('%Y-%m-%d')} Garmin 数据同步失败，请检查")
 
+    def generate_weekly_report(self):
+        """生成周报（每周日自动运行）"""
+        logger.info("开始生成本周健康周报...")
+        try:
+            from pathlib import Path
+            from analytics import HealthAnalyzer
+
+            # 使用 HealthAnalyzer 生成周报
+            analyzer = HealthAnalyzer(self.ai_extractor, self.db)
+            analysis = analyzer.generate_weekly_report()
+
+            # 保存到 Obsidian 分析文件夹
+            vault_path = Path(self.config['obsidian_vault_path'])
+            analysis_folder = self.config.get('analysis_folder', 'Health/分析')
+            analysis_path = vault_path / analysis_folder
+            analysis_path.mkdir(parents=True, exist_ok=True)
+
+            today = datetime.now()
+            filename = f"{today.strftime('%Y-%m-%d')} 周健康分析.md"
+            file_path = analysis_path / filename
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(analysis)
+
+            logger.info(f"✓ 周报已保存到: {file_path}")
+
+        except Exception as e:
+            logger.error(f"生成周报失败: {e}", exc_info=True)
+
+    def generate_monthly_report(self):
+        """生成月报（每月最后一天自动运行）"""
+        logger.info("开始生成本月健康月报...")
+        try:
+            from pathlib import Path
+            from analytics import HealthAnalyzer
+
+            now = datetime.now()
+            # 使用 HealthAnalyzer 生成月报
+            analyzer = HealthAnalyzer(self.ai_extractor, self.db)
+            analysis = analyzer.generate_monthly_report(now.year, now.month)
+
+            # 保存到 Obsidian 分析文件夹
+            vault_path = Path(self.config['obsidian_vault_path'])
+            analysis_folder = self.config.get('analysis_folder', 'Health/分析')
+            analysis_path = vault_path / analysis_folder
+            analysis_path.mkdir(parents=True, exist_ok=True)
+
+            filename = f"{now.strftime('%Y-%m')} 健康分析.md"
+            file_path = analysis_path / filename
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(analysis)
+
+            logger.info(f"✓ 月报已保存到: {file_path}")
+
+        except Exception as e:
+            logger.error(f"生成月报失败: {e}", exc_info=True)
+
     def start(self):
         """启动调度器"""
-        # 配置每日同步任务
+        # 1. 配置每日同步任务
         sync_time = self.config.get('garmin_sync_time', '12:00')
         hour, minute = map(int, sync_time.split(':'))
 
@@ -267,9 +317,28 @@ class GarminScheduler:
             id='daily_garmin_sync',
             name='每日 Garmin 数据同步'
         )
+        logger.info(f"✓ 每日同步: 每天 {sync_time} 自动同步 Garmin 数据")
 
-        logger.info(f"✓ 调度器已启动，每天 {sync_time} 自动同步 Garmin 数据")
-        logger.info("按 Ctrl+C 停止调度器")
+        # 2. 配置每周日生成周报（早上8点）
+        self.scheduler.add_job(
+            self.generate_weekly_report,
+            CronTrigger(day_of_week='sun', hour=8, minute=0),
+            id='weekly_report',
+            name='每周健康报告'
+        )
+        logger.info("✓ 周报生成: 每周日 08:00 自动生成周报")
+
+        # 3. 配置每月最后一天生成月报（晚上20点）
+        self.scheduler.add_job(
+            self.generate_monthly_report,
+            CronTrigger(day='last', hour=20, minute=0),
+            id='monthly_report',
+            name='每月健康报告'
+        )
+        logger.info("✓ 月报生成: 每月最后一天 20:00 自动生成月报")
+
+        logger.info("\n调度器已启动！按 Ctrl+C 停止")
+        logger.info("=" * 50)
 
         try:
             self.scheduler.start()

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 服务标识 -->
+    <key>Label</key>
+    <string>com.health-tracker.scheduler</string>
+
+    <!-- 运行的程序 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/taoli/andrewData/health-tracker/venv/bin/python3</string>
+        <string>-m</string>
+        <string>cli</string>
+        <string>start-scheduler</string>
+    </array>
+
+    <!-- 工作目录 -->
+    <key>WorkingDirectory</key>
+    <string>/Users/taoli/andrewData/health-tracker</string>
+
+    <!-- 开机自动启动 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 如果程序退出，自动重启 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- 标准输出日志 -->
+    <key>StandardOutPath</key>
+    <string>/Users/taoli/andrewData/health-tracker/logs/scheduler.log</string>
+
+    <!-- 标准错误日志 -->
+    <key>StandardErrorPath</key>
+    <string>/Users/taoli/andrewData/health-tracker/logs/scheduler-error.log</string>
+
+    <!-- 环境变量 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

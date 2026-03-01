@@ -26,21 +26,14 @@ echo "" >> "$LOG_FILE"
 echo "📝 步骤 2: 解析 Obsidian 笔记..." >> "$LOG_FILE"
 python3 cli.py parse --date today >> "$LOG_FILE" 2>&1
 
-# 3. 生成健康分析报告（周报 & 月报）
+# 3. 同步到 Google Sheets
 echo "" >> "$LOG_FILE"
-echo "📊 步骤 3: 生成健康分析报告..." >> "$LOG_FILE"
-python3 cli.py report --period week >> "$LOG_FILE" 2>&1
-python3 cli.py report --period month >> "$LOG_FILE" 2>&1
-
-# 4. 获取个性化健康建议
-echo "" >> "$LOG_FILE"
-echo "💡 步骤 4: 生成个性化健康建议..." >> "$LOG_FILE"
-python3 cli.py recommend >> "$LOG_FILE" 2>&1
-
-# 5. 同步到 Google Sheets
-echo "" >> "$LOG_FILE"
-echo "☁️  步骤 5: 同步到 Google Sheets..." >> "$LOG_FILE"
+echo "☁️  步骤 3: 同步到 Google Sheets..." >> "$LOG_FILE"
 python3 cli.py sync --days 1 >> "$LOG_FILE" 2>&1
+
+# 注意：周报和月报由 scheduler.py 自动生成
+# - 周报：每周日 08:00 自动生成
+# - 月报：每月最后一天 20:00 自动生成
 
 # 记录结束时间
 echo "" >> "$LOG_FILE"

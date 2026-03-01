@@ -124,8 +124,10 @@ def save_report_to_file(config: dict, analysis: str, period: str, report_date: d
             filename = f"{report_date.strftime('%Y-%m-%d')} 健康分析.md"
         elif period == 'week':
             filename = f"{report_date.strftime('%Y-%m-%d')} 周健康分析.md"
-        else:  # month
+        elif period == 'month':
             filename = f"{report_date.strftime('%Y-%m')} 健康分析.md"
+        else:  # custom
+            filename = f"{report_date.strftime('%Y-%m-%d')} 自定义分析.md"
 
         file_path = analysis_path / filename
 
@@ -416,6 +418,64 @@ def chat(question: str, days: int):
             title="Claude 的回答",
             border_style="green"
         ))
+
+    except Exception as e:
+        console.print(f"[red]错误: {str(e)}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
+@cli.command()
+@click.option('--days', default=7, help='分析最近N天的数据')
+@click.option('--save', is_flag=True, help='保存分析结果到 Obsidian')
+def analyze(days: int, save: bool):
+    """手动生成指定天数的健康分析"""
+    config = load_config()
+
+    console.print(f"\n[bold cyan]正在分析最近 {days} 天的健康数据...[/bold cyan]\n")
+
+    try:
+        extractor = create_extractor(config)
+        db = HealthDatabase(config.get('database_path', 'health_data.db'))
+        analyzer = HealthAnalyzer(extractor, db)
+
+        # 获取数据
+        records = db.get_recent_records(days=days)
+        if not records:
+            console.print(f"[yellow]最近 {days} 天没有健康记录[/yellow]")
+            return
+
+        # 构建分析提示
+        prompt = f"""请基于最近 {days} 天的健康数据，生成一份全面的健康分析报告。
+
+报告应包括：
+1. **数据概览**：记录天数、数据完整度
+2. **关键指标趋势**：体重、睡眠、运动等主要指标的变化
+3. **健康亮点**：表现良好的方面
+4. **需要关注**：潜在问题和改进空间
+5. **具体建议**：基于数据的可执行建议
+
+请用专业但友好的语气，用数据说话。
+"""
+
+        # 生成分析
+        analysis = extractor.analyze_trends(records, prompt)
+
+        # 显示分析结果
+        console.print(Panel(
+            Markdown(analysis),
+            title=f"最近 {days} 天健康分析",
+            border_style="cyan"
+        ))
+
+        # 如果需要保存
+        if save:
+            save_report_to_file(
+                config,
+                analysis,
+                'custom',  # 自定义类型
+                datetime.now()
+            )
 
     except Exception as e:
         console.print(f"[red]错误: {str(e)}[/red]")
