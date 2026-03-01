@@ -210,10 +210,13 @@ def sync(days: int, sync_all: bool):
     try:
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
 
-        # 确保Google Sheets配置存在
-        if 'google_sheets_credentials' not in config or 'google_sheet_id' not in config:
-            console.print("[red]Google Sheets 配置缺失[/red]")
-            console.print("[yellow]请在 config.json 中配置 google_sheets_credentials 和 google_sheet_id[/yellow]")
+        # 确保Google Sheets配置存在且不为空
+        if not config.get('google_sheets_credentials') or not config.get('google_sheet_id'):
+            console.print("[red]Google Sheets 配置缺失或为空[/red]")
+            console.print("[yellow]请在 config.json 中配置以下字段：[/yellow]")
+            console.print("[yellow]  - google_sheets_credentials: Google 服务账号凭证文件路径[/yellow]")
+            console.print("[yellow]  - google_sheet_id: Google Sheets 表格 ID[/yellow]")
+            console.print("\n[cyan]📖 参考文档: GOOGLE_SHEETS_SETUP.md[/cyan]")
             return
 
         sheets_sync = GoogleSheetsSync(
