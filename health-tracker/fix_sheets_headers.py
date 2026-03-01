@@ -81,9 +81,26 @@ def main():
 
     # 更新表头
     print("\n正在更新表头...")
-    worksheet.update('A1', [CORRECT_HEADERS])
 
-    print("✅ 表头已更新!")
+    # 使用新的 API 调用方式 + 重试机制
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            worksheet.update(values=[CORRECT_HEADERS], range_name='A1')
+            print("✅ 表头已更新!")
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                import time
+                print(f"尝试 {attempt + 1} 失败，2秒后重试...")
+                time.sleep(2)
+            else:
+                print(f"❌ 更新失败: {e}")
+                print("\n手动修复方案:")
+                print("1. 打开 Google Sheets")
+                print("2. 在表头第 14 列（N列）插入一列")
+                print("3. 将新列的表头设置为: light_sleep_duration")
+                return
 
     # 验证
     new_headers = worksheet.row_values(1)
