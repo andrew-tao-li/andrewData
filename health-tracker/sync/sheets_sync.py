@@ -99,7 +99,8 @@ class GoogleSheetsSync:
                 'Date', 'Weight(kg)', 'Body Fat(%)', 'Muscle Mass(kg)',
                 'BMI', 'Weight Feeling',
                 'Sleep Duration(h)', 'Sleep Start', 'Sleep End',
-                'Sleep Quality', 'Deep Sleep(h)', 'Sleep Notes',
+                'Sleep Quality', 'Deep Sleep(h)', 'Light Sleep(h)',
+                'REM Sleep(h)', 'Awake Time(h)', 'Sleep Notes',
                 'Heart Rate', 'Blood Pressure', 'Mood', 'Energy Level',
                 'Water Intake(ml)', 'Steps',
                 'Overall Feeling', 'Health Notes', 'Goals',
@@ -154,6 +155,9 @@ class GoogleSheetsSync:
                 record.get('sleep_end', ''),
                 record.get('sleep_quality', ''),
                 record.get('deep_sleep_duration', ''),
+                record.get('light_sleep_duration', ''),
+                record.get('rem_sleep_duration', ''),
+                record.get('awake_duration', ''),
                 record.get('sleep_notes', ''),
                 record.get('heart_rate', ''),
                 record.get('blood_pressure', ''),
@@ -171,7 +175,7 @@ class GoogleSheetsSync:
             if date in existing_dates:
                 # 更新现有行
                 row_num = existing_dates[date]
-                worksheet.update(f'A{row_num}:V{row_num}', [row_data])
+                worksheet.update(f'A{row_num}:Y{row_num}', [row_data])
             else:
                 # 添加新行
                 worksheet.append_row(row_data)
