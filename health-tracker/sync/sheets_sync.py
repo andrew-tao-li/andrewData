@@ -188,11 +188,9 @@ class GoogleSheetsSync:
 
             date = record.get('date')
             if date in existing_dates:
-                # 更新现有行
+                # 更新现有行 - 直接更新整行而不指定范围
                 row_num = existing_dates[date]
-                # 更新整行（A到AJ列，共36列）
-                end_col = chr(ord('A') + len(row_data) - 1)
-                worksheet.update(f'A{row_num}:{end_col}{row_num}', [row_data])
+                worksheet.update(f'A{row_num}', [row_data])
             else:
                 # 添加新行
                 worksheet.append_row(row_data)
