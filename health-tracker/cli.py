@@ -101,6 +101,44 @@ def create_extractor(config: dict) -> HealthDataExtractor:
         )
 
 
+def save_report_to_file(config: dict, analysis: str, period: str, report_date: datetime):
+    """
+    保存报告到 Obsidian 的分析文件夹
+
+    Args:
+        config: 配置字典
+        analysis: 报告内容
+        period: 报告周期 ('day', 'week', 'month')
+        report_date: 报告日期
+    """
+    try:
+        vault_path = Path(config.get('obsidian_vault_path'))
+        analysis_folder = config.get('analysis_folder', 'Health/分析')
+
+        # 创建分析文件夹的完整路径
+        analysis_path = vault_path / analysis_folder
+        analysis_path.mkdir(parents=True, exist_ok=True)
+
+        # 根据周期生成文件名
+        if period == 'day':
+            filename = f"{report_date.strftime('%Y-%m-%d')} 健康分析.md"
+        elif period == 'week':
+            filename = f"{report_date.strftime('%Y-%m-%d')} 周健康分析.md"
+        else:  # month
+            filename = f"{report_date.strftime('%Y-%m')} 健康分析.md"
+
+        file_path = analysis_path / filename
+
+        # 写入文件
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(analysis)
+
+        console.print(f"\n[green]✓ 报告已保存到: {file_path}[/green]")
+
+    except Exception as e:
+        console.print(f"\n[yellow]警告: 无法保存报告到文件: {str(e)}[/yellow]")
+
+
 @click.group()
 def cli():
     """健康追踪系统 - 使用 Claude AI 管理你的健康数据"""
@@ -328,15 +366,18 @@ def report(period: str, date: Optional[str]):
         if period == 'day':
             date_str = get_date(date) if date else get_date('today')
             analysis = analyzer.generate_daily_summary(date_str)
+            report_date = datetime.fromisoformat(date_str)
         elif period == 'week':
             date_str = get_date(date) if date else None
             analysis = analyzer.generate_weekly_report(date_str)
+            report_date = datetime.now()
         else:  # month
             if date:
                 dt = datetime.fromisoformat(get_date(date))
             else:
                 dt = datetime.now()
             analysis = analyzer.generate_monthly_report(dt.year, dt.month)
+            report_date = dt
 
         # 显示报告
         console.print(Panel(
@@ -344,6 +385,9 @@ def report(period: str, date: Optional[str]):
             title=f"{period_name(period)}健康报告",
             border_style="cyan"
         ))
+
+        # 保存报告到 Obsidian 文件夹
+        save_report_to_file(config, analysis, period, report_date)
 
     except Exception as e:
         console.print(f"[red]错误: {str(e)}[/red]")
