@@ -210,19 +210,22 @@ def sync(days: int, sync_all: bool):
     try:
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
 
+        # 兼容新旧配置项名称
+        credentials_file = (config.get('google_sheets_credentials') or
+                          config.get('google_credentials_file') or
+                          'config/credentials.json')
+        sheet_id = config.get('google_sheet_id', '')
+
         # 确保Google Sheets配置存在且不为空
-        if not config.get('google_sheets_credentials') or not config.get('google_sheet_id'):
+        if not credentials_file or not sheet_id:
             console.print("[red]Google Sheets 配置缺失或为空[/red]")
             console.print("[yellow]请在 config.json 中配置以下字段：[/yellow]")
-            console.print("[yellow]  - google_sheets_credentials: Google 服务账号凭证文件路径[/yellow]")
             console.print("[yellow]  - google_sheet_id: Google Sheets 表格 ID[/yellow]")
+            console.print("[yellow]  - google_credentials_file 或 google_sheets_credentials: 凭证文件路径[/yellow]")
             console.print("\n[cyan]📖 参考文档: GOOGLE_SHEETS_SETUP.md[/cyan]")
             return
 
-        sheets_sync = GoogleSheetsSync(
-            config['google_sheets_credentials'],
-            config['google_sheet_id']
-        )
+        sheets_sync = GoogleSheetsSync(credentials_file, sheet_id)
 
         # 获取要同步的记录
         if sync_all:
