@@ -98,6 +98,9 @@ class GarminClient:
             - sleep_score: 睡眠评分
             - sleep_start: 入睡时间
             - sleep_end: 醒来时间
+            - avg_spo2: 平均血氧
+            - avg_respiration: 平均呼吸率
+            - resting_heart_rate: 静息心率（从睡眠数据中获取）
         """
         if not self._authenticated:
             print("✗ 未认证，请先调用 authenticate()")
@@ -115,18 +118,19 @@ class GarminClient:
 
             daily_sleep = sleep_data['dailySleepDTO']
 
-            # 提取睡眠阶段数据
-            sleep_levels = daily_sleep.get('sleepLevels', {})
-
+            # 睡眠阶段数据直接在 dailySleepDTO 下，不在 sleepLevels 中
             result = {
                 'sleep_duration': round(daily_sleep.get('sleepTimeSeconds', 0) / 3600, 2),
-                'deep_sleep_duration': round(sleep_levels.get('deepSleepSeconds', 0) / 3600, 2),
-                'rem_sleep_duration': round(sleep_levels.get('remSleepSeconds', 0) / 3600, 2),
-                'light_sleep_duration': round(sleep_levels.get('lightSleepSeconds', 0) / 3600, 2),
-                'awake_duration': round(sleep_levels.get('awakeSeconds', 0) / 3600, 2),
+                'deep_sleep_duration': round(daily_sleep.get('deepSleepSeconds', 0) / 3600, 2),
+                'rem_sleep_duration': round(daily_sleep.get('remSleepSeconds', 0) / 3600, 2),
+                'light_sleep_duration': round(daily_sleep.get('lightSleepSeconds', 0) / 3600, 2),
+                'awake_duration': round(daily_sleep.get('awakeSleepSeconds', 0) / 3600, 2),
                 'sleep_score': daily_sleep.get('sleepScores', {}).get('overall', {}).get('value'),
                 'sleep_start': daily_sleep.get('sleepStartTimestampLocal'),
                 'sleep_end': daily_sleep.get('sleepEndTimestampLocal'),
+                'avg_spo2': daily_sleep.get('averageSpO2Value'),
+                'avg_respiration': daily_sleep.get('averageRespirationValue'),
+                'resting_heart_rate': sleep_data.get('restingHeartRate'),  # 从睡眠数据中获取静息心率
             }
 
             return result
@@ -186,8 +190,6 @@ class GarminClient:
         Returns:
             心率数据字典，包含：
             - resting_heart_rate: 静息心率
-            - avg_heart_rate: 平均心率
-            - max_heart_rate: 最大心率
         """
         if not self._authenticated:
             print("✗ 未认证，请先调用 authenticate()")
@@ -203,10 +205,18 @@ class GarminClient:
                 print(f"⚠️  {date_str} 无心率数据")
                 return None
 
+            # 从 allMetrics.metricsMap 中提取静息心率
+            resting_hr = None
+            try:
+                metrics_map = heart_rate.get('allMetrics', {}).get('metricsMap', {})
+                rhr_data = metrics_map.get('WELLNESS_RESTING_HEART_RATE', [])
+                if rhr_data and len(rhr_data) > 0:
+                    resting_hr = rhr_data[0].get('value')
+            except (KeyError, IndexError, TypeError):
+                pass
+
             result = {
-                'resting_heart_rate': heart_rate.get('restingHeartRate'),
-                'avg_heart_rate': heart_rate.get('currentDayRestingHeartRate'),
-                'max_heart_rate': heart_rate.get('maxHeartRate'),
+                'resting_heart_rate': resting_hr,
             }
 
             return result
