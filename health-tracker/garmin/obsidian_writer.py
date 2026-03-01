@@ -79,9 +79,8 @@ class ObsidianWriter:
         note_path = self.get_daily_note_path(date)
 
         if not note_path.exists():
-            # 创建简单的日记模板
-            date_str = date.strftime("%Y-%m-%d")
-            content = f"# {date_str}\n\n"
+            # 创建空白日记（不添加日期标题，因为文件名已经是日期）
+            content = ""
 
             note_path.parent.mkdir(parents=True, exist_ok=True)
             with open(note_path, 'w', encoding='utf-8') as f:
