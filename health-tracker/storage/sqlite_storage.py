@@ -210,7 +210,8 @@ class HealthDatabase:
                 # 心血管相关
                 'heart_rate': data.get('heart_rate'),
                 'resting_heart_rate': data.get('resting_heart_rate'),
-                'hrv': data.get('hrv'),
+                'hrv': data.get('hrv'),  # 七天平均 HRV
+                'hrv_night': data.get('hrv_night'),  # 夜间平均 HRV
                 'blood_pressure': data.get('blood_pressure'),
                 'vo2_max': data.get('vo2_max'),
                 # 主观感受

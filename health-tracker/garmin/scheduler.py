@@ -173,7 +173,8 @@ class GarminScheduler:
             'sleep_duration': data['sleep'].get('sleep_duration') if data.get('sleep') else None,
             'deep_sleep_duration': data['sleep'].get('deep_sleep_duration') if data.get('sleep') else None,
             'rem_sleep_duration': data['sleep'].get('rem_sleep_duration') if data.get('sleep') else None,
-            'hrv': data['hrv'].get('hrv') if data.get('hrv') else None,
+            'hrv': data['hrv'].get('weekly_avg') if data.get('hrv') else None,  # 七天平均 HRV
+            'hrv_night': data['hrv'].get('hrv') if data.get('hrv') else None,  # 夜间平均 HRV (lastNightAvg)
             'resting_heart_rate': data['heart_rate'].get('resting_heart_rate') if data.get('heart_rate') else None,
         }
 

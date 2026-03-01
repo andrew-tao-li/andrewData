@@ -163,8 +163,8 @@ class ObsidianWriter:
 REM睡眠：{format_duration(sleep.get('rem_sleep_duration'))}
 静息心率_bpm：{heart_rate.get('resting_heart_rate') or '_（待填写）_'}{' ✓' if heart_rate.get('resting_heart_rate') else ''}
 夜间平均心率_bpm：{heart_rate.get('avg_heart_rate') or '_（待填写）_'}{' ✓' if heart_rate.get('avg_heart_rate') else ''}
-HRV_ms：{hrv_data.get('hrv') or '_（待填写）_'}{' ✓' if hrv_data.get('hrv') else ''}
-夜间平均HRV_ms：{hrv_data.get('weekly_avg') or '_（待填写）_'}{' ✓' if hrv_data.get('weekly_avg') else ''}
+HRV_ms：{hrv_data.get('weekly_avg') or '_（待填写）_'}{' ✓' if hrv_data.get('weekly_avg') else ''}
+夜间平均HRV_ms：{hrv_data.get('hrv') or '_（待填写）_'}{' ✓' if hrv_data.get('hrv') else ''}
 夜间排尿次数：{data.get('urination_count') or '_（待填写）_'}
 跟腱疼痛评分：{data.get('pain_score') or '_（待填写）_'}
 晨僵时长_min：{data.get('morning_stiffness_duration') or '_（待填写）_'}
