@@ -94,27 +94,29 @@ class GoogleSheetsSync:
 
     def _ensure_worksheets(self):
         """确保所有需要的工作表都存在"""
+        # 使用原有的中文 sheet 名称和字段
         required_sheets = {
-            'Health Data': [
-                'Date', 'Weight(kg)', 'Body Fat(%)', 'Muscle Mass(kg)',
-                'BMI', 'Weight Feeling',
-                'Sleep Duration(h)', 'Sleep Start', 'Sleep End',
-                'Sleep Quality', 'Deep Sleep(h)', 'Light Sleep(h)',
-                'REM Sleep(h)', 'Awake Time(h)', 'Sleep Notes',
-                'Heart Rate', 'Blood Pressure', 'Mood', 'Energy Level',
-                'Water Intake(ml)', 'Steps',
-                'Overall Feeling', 'Health Notes', 'Goals',
-                'Last Updated'
+            '健康记录': [
+                'date', 'weight', 'muscle_mass', 'body_fat_percentage', 'bmi',
+                'basal_metabolism', 'visceral_fat_level', 'weight_feeling',
+                'sleep_duration', 'sleep_start', 'sleep_end', 'sleep_quality',
+                'deep_sleep_duration', 'light_sleep_duration', 'rem_sleep_duration', 'awake_duration', 'sleep_notes',
+                'urination_count',
+                'resting_heart_rate', 'heart_rate', 'hrv', 'blood_pressure', 'vo2_max',
+                'rhr_baseline', 'hrv_baseline',
+                'pain_score', 'pain_location', 'morning_stiffness_duration', 'symptoms',
+                'mood', 'energy_level', 'overall_feeling',
+                'steps', 'water_intake', 'health_notes',
+                'created_at', 'updated_at'
             ],
-            'Exercises': [
-                'Date', 'Type', 'Duration(min)', 'Distance(km)',
-                'Intensity', 'Calories', 'Feeling', 'Notes'
+            '运动记录': [
+                'id', 'date', 'type', 'duration', 'distance', 'intensity',
+                'calories', 'avg_heart_rate', 'max_heart_rate', 'avg_pace',
+                'training_load', 'feeling', 'notes', 'created_at'
             ],
-            'Meals': [
-                'Date', 'Meal Type', 'Description', 'Calories', 'Notes'
-            ],
-            'Statistics': [
-                'Metric', 'Value', 'Period', 'Last Updated'
+            '饮食记录': [
+                'id', 'date', 'meal_type', 'description', 'calories',
+                'quantity', 'notes', 'created_at'
             ]
         }
 
@@ -136,19 +138,22 @@ class GoogleSheetsSync:
 
     def _sync_main_data(self, records: List[Dict[str, Any]]):
         """同步主健康数据"""
-        worksheet = self.spreadsheet.worksheet('Health Data')
+        worksheet = self.spreadsheet.worksheet('健康记录')
 
         # 获取现有数据
         existing_data = worksheet.get_all_records()
-        existing_dates = {row['Date']: idx + 2 for idx, row in enumerate(existing_data)}
+        existing_dates = {row['date']: idx + 2 for idx, row in enumerate(existing_data)}
 
         for record in records:
+            # 按照原有字段顺序构建数据行
             row_data = [
                 record.get('date', ''),
                 record.get('weight', ''),
-                record.get('body_fat_percentage', ''),
                 record.get('muscle_mass', ''),
+                record.get('body_fat_percentage', ''),
                 record.get('bmi', ''),
+                record.get('basal_metabolism', ''),
+                record.get('visceral_fat_level', ''),
                 record.get('weight_feeling', ''),
                 record.get('sleep_duration', ''),
                 record.get('sleep_start', ''),
@@ -159,30 +164,42 @@ class GoogleSheetsSync:
                 record.get('rem_sleep_duration', ''),
                 record.get('awake_duration', ''),
                 record.get('sleep_notes', ''),
+                record.get('urination_count', ''),
+                record.get('resting_heart_rate', ''),
                 record.get('heart_rate', ''),
+                record.get('hrv', ''),
                 record.get('blood_pressure', ''),
+                record.get('vo2_max', ''),
+                record.get('rhr_baseline', ''),
+                record.get('hrv_baseline', ''),
+                record.get('pain_score', ''),
+                record.get('pain_location', ''),
+                record.get('morning_stiffness_duration', ''),
+                record.get('symptoms', ''),
                 record.get('mood', ''),
                 record.get('energy_level', ''),
-                record.get('water_intake', ''),
-                record.get('steps', ''),
                 record.get('overall_feeling', ''),
+                record.get('steps', ''),
+                record.get('water_intake', ''),
                 record.get('health_notes', ''),
-                record.get('goals', ''),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                record.get('created_at', ''),
+                record.get('updated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             ]
 
             date = record.get('date')
             if date in existing_dates:
                 # 更新现有行
                 row_num = existing_dates[date]
-                worksheet.update(f'A{row_num}:Y{row_num}', [row_data])
+                # 更新整行（A到AJ列，共36列）
+                end_col = chr(ord('A') + len(row_data) - 1)
+                worksheet.update(f'A{row_num}:{end_col}{row_num}', [row_data])
             else:
                 # 添加新行
                 worksheet.append_row(row_data)
 
     def _sync_exercises(self, records: List[Dict[str, Any]]):
         """同步运动数据"""
-        worksheet = self.spreadsheet.worksheet('Exercises')
+        worksheet = self.spreadsheet.worksheet('运动记录')
 
         # 收集所有运动记录
         all_exercises = []
@@ -190,25 +207,33 @@ class GoogleSheetsSync:
             date = record.get('date')
             for exercise in record.get('exercises', []):
                 all_exercises.append([
+                    exercise.get('id', ''),
                     date,
                     exercise.get('type', ''),
                     exercise.get('duration', ''),
                     exercise.get('distance', ''),
                     exercise.get('intensity', ''),
                     exercise.get('calories', ''),
+                    exercise.get('avg_heart_rate', ''),
+                    exercise.get('max_heart_rate', ''),
+                    exercise.get('avg_pace', ''),
+                    exercise.get('training_load', ''),
                     exercise.get('feeling', ''),
-                    exercise.get('notes', '')
+                    exercise.get('notes', ''),
+                    exercise.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                 ])
 
         if all_exercises:
             # 获取现有数据
             existing_data = worksheet.get_all_values()
-            dates_to_sync = {ex[0] for ex in all_exercises}
+            # ex[1] 是 date（第2列，因为第1列是id）
+            dates_to_sync = {ex[1] for ex in all_exercises}
 
             # 删除要更新日期的旧记录
             rows_to_delete = []
             for idx, row in enumerate(existing_data[1:], start=2):  # 跳过表头
-                if row[0] in dates_to_sync:
+                # row[1] 是 date 列
+                if len(row) > 1 and row[1] in dates_to_sync:
                     rows_to_delete.append(idx)
 
             # 从后往前删除，避免索引变化
@@ -221,7 +246,7 @@ class GoogleSheetsSync:
 
     def _sync_meals(self, records: List[Dict[str, Any]]):
         """同步饮食数据"""
-        worksheet = self.spreadsheet.worksheet('Meals')
+        worksheet = self.spreadsheet.worksheet('饮食记录')
 
         # 收集所有餐食记录
         all_meals = []
@@ -229,22 +254,27 @@ class GoogleSheetsSync:
             date = record.get('date')
             for meal in record.get('meals', []):
                 all_meals.append([
+                    meal.get('id', ''),
                     date,
                     meal.get('meal_type', ''),
                     meal.get('description', ''),
                     meal.get('calories', ''),
-                    meal.get('notes', '')
+                    meal.get('quantity', ''),
+                    meal.get('notes', ''),
+                    meal.get('created_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                 ])
 
         if all_meals:
             # 获取现有数据
             existing_data = worksheet.get_all_values()
-            dates_to_sync = {meal[0] for meal in all_meals}
+            # meal[1] 是 date（第2列，因为第1列是id）
+            dates_to_sync = {meal[1] for meal in all_meals}
 
             # 删除要更新日期的旧记录
             rows_to_delete = []
             for idx, row in enumerate(existing_data[1:], start=2):
-                if row[0] in dates_to_sync:
+                # row[1] 是 date 列
+                if len(row) > 1 and row[1] in dates_to_sync:
                     rows_to_delete.append(idx)
 
             for row_num in sorted(rows_to_delete, reverse=True):
@@ -258,9 +288,15 @@ class GoogleSheetsSync:
         """
         更新统计信息到Google Sheets
 
+        注意：此功能已禁用，原有系统不使用独立的统计表
+
         Args:
             stats: 统计数据字典
         """
+        # 原有系统不使用独立的统计表，跳过此功能
+        print("统计信息更新已跳过（原有系统不使用）")
+        return
+
         try:
             worksheet = self.spreadsheet.worksheet('Statistics')
 
