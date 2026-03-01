@@ -26,11 +26,11 @@ echo "" >> "$LOG_FILE"
 echo "📝 步骤 2: 解析 Obsidian 笔记..." >> "$LOG_FILE"
 python3 cli.py parse --date today >> "$LOG_FILE" 2>&1
 
-# 3. 生成健康分析报告（7天 & 30天）
+# 3. 生成健康分析报告（周报 & 月报）
 echo "" >> "$LOG_FILE"
 echo "📊 步骤 3: 生成健康分析报告..." >> "$LOG_FILE"
-python3 cli.py report --days 7 >> "$LOG_FILE" 2>&1
-python3 cli.py report --days 30 >> "$LOG_FILE" 2>&1
+python3 cli.py report --period week >> "$LOG_FILE" 2>&1
+python3 cli.py report --period month >> "$LOG_FILE" 2>&1
 
 # 4. 获取个性化健康建议
 echo "" >> "$LOG_FILE"
