@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, Any
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
+import pytz
 
 from garmin.garmin_client import GarminClient
 from garmin.obsidian_writer import ObsidianWriter
@@ -45,7 +46,10 @@ class GarminScheduler:
         """
         self.config_path = config_path
         self.config = self._load_config()
-        self.scheduler = BlockingScheduler()
+
+        # 使用本地时区（CST/Asia/Shanghai）
+        self.timezone = pytz.timezone('Asia/Shanghai')
+        self.scheduler = BlockingScheduler(timezone=self.timezone)
 
         # 初始化组件
         self._init_components()
@@ -307,6 +311,8 @@ class GarminScheduler:
 
     def start(self):
         """启动调度器"""
+        logger.info(f"调度器时区: {self.timezone}")
+
         # 1. 配置每日同步任务
         sync_time = self.config.get('garmin_sync_time', '12:00')
         hour, minute = map(int, sync_time.split(':'))
@@ -317,7 +323,7 @@ class GarminScheduler:
             id='daily_garmin_sync',
             name='每日 Garmin 数据同步'
         )
-        logger.info(f"✓ 每日同步: 每天 {sync_time} 自动同步 Garmin 数据")
+        logger.info(f"✓ 每日同步: 每天 {sync_time} ({self.timezone}) 自动同步 Garmin 数据")
 
         # 2. 配置每周日生成周报（早上8点）
         self.scheduler.add_job(
