@@ -111,7 +111,7 @@ fi
 print_step "测试 Garmin 连接（这可能需要 10-30 秒）"
 
 TEST_OUTPUT=$(python3 cli.py garmin-test 2>&1)
-if echo "$TEST_OUTPUT" | grep -q "✓ 测试成功"; then
+if echo "$TEST_OUTPUT" | grep -q "✓ Garmin 认证成功"; then
     print_success "Garmin 连接正常"
 else
     print_error "Garmin 连接失败"
