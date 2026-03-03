@@ -23,16 +23,23 @@ mkdir -p "$HOME/Library/LaunchAgents"
 # 停止旧的服务（如果正在运行）
 if launchctl list | grep -q "com.health-tracker.scheduler"; then
     echo "⏹  停止现有的调度器服务..."
-    launchctl unload "$PLIST_DST" 2>/dev/null
+    launchctl bootout "gui/$(id -u)/$PLIST_NAME" 2>/dev/null || launchctl unload "$PLIST_DST" 2>/dev/null
 fi
+
+# 停止手动运行的调度器进程（如果存在）
+echo "🛑 停止手动运行的调度器进程..."
+pkill -f "start-scheduler" 2>/dev/null || true
 
 # 复制 plist 文件
 echo "📋 复制配置文件到 ~/Library/LaunchAgents/..."
 cp "$PLIST_SRC" "$PLIST_DST"
 
-# 加载服务
+# 设置正确的权限
+chmod 644 "$PLIST_DST"
+
+# 加载服务（使用现代命令）
 echo "🚀 启动调度器服务..."
-launchctl load "$PLIST_DST"
+launchctl bootstrap "gui/$(id -u)" "$PLIST_DST" 2>/dev/null || launchctl load "$PLIST_DST"
 
 # 检查状态
 echo ""
@@ -50,9 +57,10 @@ if launchctl list | grep -q "com.health-tracker.scheduler"; then
     echo "  • 错误日志: $SCRIPT_DIR/logs/scheduler-error.log"
     echo ""
     echo "🔧 管理命令："
-    echo "  • 停止服务: launchctl unload ~/Library/LaunchAgents/$PLIST_NAME"
-    echo "  • 启动服务: launchctl load ~/Library/LaunchAgents/$PLIST_NAME"
+    echo "  • 停止服务: launchctl bootout gui/\$(id -u) ~/Library/LaunchAgents/$PLIST_NAME"
+    echo "  • 启动服务: launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/$PLIST_NAME"
     echo "  • 查看状态: launchctl list | grep health-tracker"
+    echo "  • 查看进程: ps aux | grep start-scheduler"
 else
     echo "❌ 调度器启动失败，请检查日志"
     exit 1

@@ -321,7 +321,8 @@ class GarminScheduler:
             self.sync_garmin_data,
             CronTrigger(hour=hour, minute=minute),
             id='daily_garmin_sync',
-            name='每日 Garmin 数据同步'
+            name='每日 Garmin 数据同步',
+            misfire_grace_time=60  # 允许任务延迟60秒内仍执行
         )
         logger.info(f"✓ 每日同步: 每天 {sync_time} ({self.timezone}) 自动同步 Garmin 数据")
 
@@ -330,7 +331,8 @@ class GarminScheduler:
             self.generate_weekly_report,
             CronTrigger(day_of_week='sun', hour=8, minute=0),
             id='weekly_report',
-            name='每周健康报告'
+            name='每周健康报告',
+            misfire_grace_time=60  # 允许任务延迟60秒内仍执行
         )
         logger.info("✓ 周报生成: 每周日 08:00 自动生成周报")
 
@@ -339,7 +341,8 @@ class GarminScheduler:
             self.generate_monthly_report,
             CronTrigger(day='last', hour=20, minute=0),
             id='monthly_report',
-            name='每月健康报告'
+            name='每月健康报告',
+            misfire_grace_time=60  # 允许任务延迟60秒内仍执行
         )
         logger.info("✓ 月报生成: 每月最后一天 20:00 自动生成月报")
 
