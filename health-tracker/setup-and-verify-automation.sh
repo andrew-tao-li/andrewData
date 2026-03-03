@@ -126,7 +126,7 @@ fi
 print_step "测试手动同步昨天的数据"
 
 SYNC_OUTPUT=$(python3 cli.py garmin-sync --date yesterday 2>&1)
-if echo "$SYNC_OUTPUT" | grep -q "✓ 同步成功"; then
+if echo "$SYNC_OUTPUT" | grep -q "✓ Garmin 数据同步成功"; then
     print_success "手动同步成功"
 
     # 检查是否生成了数据
