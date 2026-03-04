@@ -388,11 +388,8 @@ class GarminScheduler:
         logger.info("✓ 月报生成: 每月最后一天 20:00 自动生成月报")
 
         logger.info("\n" + "=" * 50)
-        logger.info("📋 已安排的任务:")
-        for job in self.scheduler.get_jobs():
-            logger.info(f"   • {job.name}: 下一次执行 {job.next_run_time}")
-        logger.info("=" * 50)
-        logger.info("✅ 调度器已启动！按 Ctrl+C 停止")
+        logger.info("✅ 调度器已启动！")
+        logger.info("💡 提示: 每小时心跳会显示任务执行时间")
         logger.info("=" * 50)
         flush_logs()  # 确保所有启动日志都写入
 
