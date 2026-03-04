@@ -53,12 +53,10 @@ def test_garmin_connection():
     # 3. 测试登录
     print("3️⃣ 测试登录...")
     try:
-        user_info = client.get_user_info()
-        if user_info:
+        if client.authenticate():
             print("   ✅ 登录成功！")
-            print(f"   • 用户信息: {user_info}")
         else:
-            print("   ❌ 登录失败：未获取到用户信息")
+            print("   ❌ 登录失败")
             return False
     except Exception as e:
         print(f"   ❌ 登录失败: {e}")
