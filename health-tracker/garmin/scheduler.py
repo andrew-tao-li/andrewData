@@ -135,6 +135,14 @@ class GarminScheduler:
         Returns:
             是否同步成功
         """
+        # ===== 关键日志：证明函数被调用 =====
+        logger.info("=" * 80)
+        logger.info("🔔 SYNC_GARMIN_DATA 函数被调用！")
+        logger.info(f"   📍 调用时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}")
+        logger.info(f"   📍 调用者: APScheduler 定时任务")
+        logger.info("=" * 80)
+        flush_logs()
+
         if date is None:
             date = datetime.now() - timedelta(days=1)  # 默认获取昨天的数据
 
@@ -335,6 +343,12 @@ class GarminScheduler:
         logger.info(f"📋 活跃任务:")
         for job in self.scheduler.get_jobs():
             logger.info(f"   • {job.name}: 下一次执行 {job.next_run_time}")
+            # 额外调试信息
+            if job.id == 'daily_garmin_sync':
+                logger.info(f"     ⚙️  任务ID: {job.id}")
+                logger.info(f"     ⚙️  触发器: {job.trigger}")
+                logger.info(f"     ⚙️  Misfire宽限期: {getattr(job, 'misfire_grace_time', 'N/A')}秒")
+                logger.info(f"     ⚙️  暂停状态: {getattr(job, 'paused', False)}")
         flush_logs()
 
     def start(self):
