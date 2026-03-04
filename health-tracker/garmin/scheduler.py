@@ -21,17 +21,31 @@ from extractors import HealthDataExtractor
 from sync import GoogleSheetsSync
 
 
-# 配置日志
+# 配置日志 - 添加强制刷新避免缓冲问题
+log_file_handler = logging.FileHandler('logs/garmin_scheduler.log')
+log_file_handler.setLevel(logging.INFO)
+log_stream_handler = logging.StreamHandler()
+log_stream_handler.setLevel(logging.INFO)
+
+# 强制刷新日志
+log_file_handler.flush = lambda: log_file_handler.stream.flush() if hasattr(log_file_handler, 'stream') else None
+log_stream_handler.flush = lambda: log_stream_handler.stream.flush() if hasattr(log_stream_handler, 'stream') else None
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/garmin_scheduler.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[log_file_handler, log_stream_handler],
+    force=True  # 强制重新配置日志
 )
 
 logger = logging.getLogger('GarminScheduler')
+
+# 确保每次日志后立即刷新
+def flush_logs():
+    for handler in logger.handlers:
+        handler.flush()
+    for handler in logging.root.handlers:
+        handler.flush()
 
 
 class GarminScheduler:
@@ -125,7 +139,9 @@ class GarminScheduler:
             date = datetime.now() - timedelta(days=1)  # 默认获取昨天的数据
 
         date_str = date.strftime('%Y-%m-%d')
-        logger.info(f"开始同步 {date_str} 的 Garmin 数据...")
+        logger.info(f"🚀 任务触发！开始同步 {date_str} 的 Garmin 数据...")
+        logger.info(f"⏰ 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        flush_logs()  # 立即刷新日志
 
         try:
             # 1. 从 Garmin 获取数据
@@ -162,11 +178,14 @@ class GarminScheduler:
                 self._sync_to_google_sheets(date_str)
 
             # 7. 完成
-            logger.info(f"✓ {date_str} 数据同步成功")
+            logger.info(f"✅ {date_str} 数据同步成功！")
+            logger.info(f"⏰ 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            flush_logs()  # 立即刷新日志
             return True
 
         except Exception as e:
-            logger.error(f"同步过程出错: {e}", exc_info=True)
+            logger.error(f"❌ 同步过程出错: {e}", exc_info=True)
+            flush_logs()  # 立即刷新日志
             return self._handle_failure(date, retry_count)
 
     def _save_to_database(self, data: Dict[str, Any]):
@@ -309,9 +328,31 @@ class GarminScheduler:
         except Exception as e:
             logger.error(f"生成月报失败: {e}", exc_info=True)
 
+    def _heartbeat(self):
+        """调度器心跳 - 每小时输出一次状态"""
+        now = datetime.now()
+        logger.info(f"💓 调度器心跳 - 当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"📋 活跃任务:")
+        for job in self.scheduler.get_jobs():
+            logger.info(f"   • {job.name}: 下一次执行 {job.next_run_time}")
+        flush_logs()
+
     def start(self):
         """启动调度器"""
-        logger.info(f"调度器时区: {self.timezone}")
+        logger.info(f"🚀 调度器启动中...")
+        logger.info(f"⏰ 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"🌏 调度器时区: {self.timezone}")
+        flush_logs()
+
+        # 0. 添加心跳任务（每小时）
+        self.scheduler.add_job(
+            self._heartbeat,
+            CronTrigger(minute=0),  # 每小时整点
+            id='heartbeat',
+            name='调度器心跳',
+            misfire_grace_time=300  # 5分钟容错
+        )
+        logger.info("✓ 心跳监控: 每小时整点输出调度器状态")
 
         # 1. 配置每日同步任务
         sync_time = self.config.get('garmin_sync_time', '12:00')
@@ -346,10 +387,19 @@ class GarminScheduler:
         )
         logger.info("✓ 月报生成: 每月最后一天 20:00 自动生成月报")
 
-        logger.info("\n调度器已启动！按 Ctrl+C 停止")
+        logger.info("\n" + "=" * 50)
+        logger.info("📋 已安排的任务:")
+        for job in self.scheduler.get_jobs():
+            logger.info(f"   • {job.name}: 下一次执行 {job.next_run_time}")
         logger.info("=" * 50)
+        logger.info("✅ 调度器已启动！按 Ctrl+C 停止")
+        logger.info("=" * 50)
+        flush_logs()  # 确保所有启动日志都写入
 
         try:
+            logger.info("⏰ 进入调度循环，等待任务触发...")
+            flush_logs()
             self.scheduler.start()
         except (KeyboardInterrupt, SystemExit):
-            logger.info("调度器已停止")
+            logger.info("🛑 调度器已停止")
+            flush_logs()
