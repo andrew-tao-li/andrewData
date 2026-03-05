@@ -178,26 +178,33 @@ class GarminScheduler:
 
             # 3. 保存到 SQLite（独立错误处理，失败不中断流程）
             logger.info("步骤 3/7: 保存到本地数据库")
+            flush_logs()
             try:
                 self._save_to_database(data)
                 status['database'] = True
                 logger.info("   ✅ 数据库保存成功")
             except Exception as e:
-                logger.error(f"   ❌ 数据库保存失败: {e}", exc_info=True)
-                errors.append(f"数据库: {e}")
+                logger.error(f"   ❌❌❌ 数据库保存失败: {e}")
+                logger.error(f"   ⚠️  这不影响Obsidian写入，继续执行...")
+                logger.error(f"   详细错误信息:", exc_info=True)
+                errors.append(f"数据库: {str(e)[:100]}")
                 # 继续执行，不中断
+            flush_logs()
 
-            # 4. 写入 Obsidian 日记（独立错误处理）
-            logger.info("步骤 4/7: 写入 Obsidian 日记")
+            # 4. 写入 Obsidian 日记（最高优先级，必须执行）
+            logger.info("步骤 4/7: 写入 Obsidian 日记 【优先】")
+            flush_logs()
             try:
                 create_if_missing = self.config.get('create_daily_note_if_missing', True)
                 self.obsidian_writer.write_health_log(date, data, create_if_missing)
                 status['obsidian'] = True
-                logger.info("   ✅ Obsidian 写入成功")
+                logger.info("   ✅✅✅ Obsidian 写入成功！")
             except Exception as e:
-                logger.error(f"   ❌ Obsidian 写入失败: {e}", exc_info=True)
-                errors.append(f"Obsidian: {e}")
+                logger.error(f"   ❌❌❌ Obsidian 写入失败: {e}")
+                logger.error(f"   详细错误信息:", exc_info=True)
+                errors.append(f"Obsidian: {str(e)[:100]}")
                 # 继续执行
+            flush_logs()
 
             # 5. 生成健康分析（独立错误处理）
             logger.info("步骤 5/7: 生成健康分析")
@@ -246,11 +253,19 @@ class GarminScheduler:
             logger.info("=" * 80)
             flush_logs()
 
-            # 至少Obsidian成功就算成功（因为这是最重要的）
+            # 至少Obsidian成功就算成功（这是最重要的）
+            if status['obsidian']:
+                logger.info("🎯 核心目标达成：Obsidian已写入")
+                if not status['database']:
+                    logger.warning("⚠️  提醒：数据库未保存，但Obsidian已更新")
+            else:
+                logger.error("❌ 警告：Obsidian未能写入！")
+
+            flush_logs()
             return status['obsidian']
 
         except Exception as e:
-            logger.error(f"❌ 同步过程严重错误（数据获取失败）: {e}", exc_info=True)
+            logger.error(f"❌ 同步过程严重错误（数据获取/验证失败）: {e}", exc_info=True)
             flush_logs()
             return self._handle_failure(date, retry_count)
 

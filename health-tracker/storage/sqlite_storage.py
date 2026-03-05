@@ -23,17 +23,24 @@ class HealthDatabase:
             db_path: 数据库文件路径
         """
         self.db_path = db_path
-        self.conn = None
         self._lock = threading.Lock()  # 线程锁，保护数据库操作
         self._init_database()
 
+    def _get_connection(self):
+        """
+        获取数据库连接（线程安全）
+
+        每次调用都返回新的连接，避免跨线程共享连接对象
+        这样APScheduler的不同线程可以安全地操作数据库
+        """
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        return conn
+
     def _init_database(self):
         """初始化数据库表结构"""
-        # check_same_thread=False 允许多线程使用同一个连接
-        # 使用锁机制保证线程安全
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row  # 返回字典格式
-        cursor = self.conn.cursor()
+        conn = self._get_connection()
+        cursor = conn.cursor()
 
         # 主健康数据表
         cursor.execute("""
@@ -167,7 +174,8 @@ class HealthDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_exercises_date ON exercises(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date)")
 
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
     def save_health_record(self, data: Dict[str, Any]) -> bool:
         """
@@ -180,13 +188,15 @@ class HealthDatabase:
             是否保存成功
         """
         with self._lock:  # 使用锁保护数据库操作
+            conn = None
             try:
                 date = data.get('processed_date') or data.get('date')
                 if not date:
                     print("Error: No date provided")
                     return False
 
-                cursor = self.conn.cursor()
+                conn = self._get_connection()
+                cursor = conn.cursor()
 
                 # 检查是否已存在该日期的记录
                 cursor.execute("SELECT id FROM health_records WHERE date = ?", (date,))
@@ -304,13 +314,17 @@ class HealthDatabase:
                             meal.get('notes')
                         ))
 
-                self.conn.commit()
+                conn.commit()
                 return True
 
             except Exception as e:
                 print(f"Error saving health record: {e}")
-                self.conn.rollback()
+                if conn:
+                    conn.rollback()
                 return False
+            finally:
+                if conn:
+                    conn.close()
 
     def save_exercise(self, data: Dict[str, Any]) -> bool:
         """
@@ -323,13 +337,15 @@ class HealthDatabase:
             是否保存成功
         """
         with self._lock:
+            conn = None
             try:
                 date = data.get('date')
                 if not date:
                     print("Error: No date provided for exercise")
                     return False
 
-                cursor = self.conn.cursor()
+                conn = self._get_connection()
+                cursor = conn.cursor()
 
                 # 插入运动记录
                 cursor.execute("""
@@ -347,13 +363,17 @@ class HealthDatabase:
                     data.get('notes')
                 ))
 
-                self.conn.commit()
+                conn.commit()
                 return True
 
             except Exception as e:
                 print(f"Error saving exercise: {e}")
-                self.conn.rollback()
+                if conn:
+                    conn.rollback()
                 return False
+            finally:
+                if conn:
+                    conn.close()
 
     def get_record_by_date(self, date: str) -> Optional[Dict[str, Any]]:
         """
@@ -366,28 +386,32 @@ class HealthDatabase:
             健康记录字典，不存在则返回None
         """
         with self._lock:
-            cursor = self.conn.cursor()
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
 
-            # 获取主记录
-            cursor.execute("SELECT * FROM health_records WHERE date = ?", (date,))
-            record = cursor.fetchone()
+                # 获取主记录
+                cursor.execute("SELECT * FROM health_records WHERE date = ?", (date,))
+                record = cursor.fetchone()
 
-            if not record:
-                return None
+                if not record:
+                    return None
 
-            result = dict(record)
+                result = dict(record)
 
-            # 获取运动记录
-            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-            exercises = [dict(row) for row in cursor.fetchall()]
-            result['exercises'] = exercises
+                # 获取运动记录
+                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                exercises = [dict(row) for row in cursor.fetchall()]
+                result['exercises'] = exercises
 
-            # 获取饮食记录
-            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-            meals = [dict(row) for row in cursor.fetchall()]
-            result['meals'] = meals
+                # 获取饮食记录
+                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                meals = [dict(row) for row in cursor.fetchall()]
+                result['meals'] = meals
 
-            return result
+                return result
+            finally:
+                conn.close()
 
     def get_records_by_range(
         self,
@@ -678,9 +702,8 @@ class HealthDatabase:
             return records
 
     def close(self):
-        """关闭数据库连接"""
-        if self.conn:
-            self.conn.close()
+        """关闭数据库连接（每次操作都创建新连接，无需手动关闭）"""
+        pass
 
     def __enter__(self):
         return self
