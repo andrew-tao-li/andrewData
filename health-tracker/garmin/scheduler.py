@@ -167,33 +167,91 @@ class GarminScheduler:
                 logger.warning("数据验证失败，缺少必需字段")
                 return self._handle_failure(date, retry_count)
 
-            # 3. 保存到 SQLite
+            # 跟踪各步骤执行状态
+            status = {
+                'database': False,
+                'obsidian': False,
+                'analysis': False,
+                'sheets': False
+            }
+            errors = []
+
+            # 3. 保存到 SQLite（独立错误处理，失败不中断流程）
             logger.info("步骤 3/7: 保存到本地数据库")
-            self._save_to_database(data)
+            try:
+                self._save_to_database(data)
+                status['database'] = True
+                logger.info("   ✅ 数据库保存成功")
+            except Exception as e:
+                logger.error(f"   ❌ 数据库保存失败: {e}", exc_info=True)
+                errors.append(f"数据库: {e}")
+                # 继续执行，不中断
 
-            # 4. 写入 Obsidian 日记
+            # 4. 写入 Obsidian 日记（独立错误处理）
             logger.info("步骤 4/7: 写入 Obsidian 日记")
-            create_if_missing = self.config.get('create_daily_note_if_missing', True)
-            self.obsidian_writer.write_health_log(date, data, create_if_missing)
+            try:
+                create_if_missing = self.config.get('create_daily_note_if_missing', True)
+                self.obsidian_writer.write_health_log(date, data, create_if_missing)
+                status['obsidian'] = True
+                logger.info("   ✅ Obsidian 写入成功")
+            except Exception as e:
+                logger.error(f"   ❌ Obsidian 写入失败: {e}", exc_info=True)
+                errors.append(f"Obsidian: {e}")
+                # 继续执行
 
-            # 5. 生成健康分析
+            # 5. 生成健康分析（独立错误处理）
             logger.info("步骤 5/7: 生成健康分析")
-            self._generate_and_save_analysis(date)
+            try:
+                self._generate_and_save_analysis(date)
+                status['analysis'] = True
+                logger.info("   ✅ 健康分析生成成功")
+            except Exception as e:
+                logger.error(f"   ❌ 健康分析失败: {e}", exc_info=True)
+                errors.append(f"分析: {e}")
+                # 继续执行
 
-            # 6. 同步到 Google Sheets
+            # 6. 同步到 Google Sheets（独立错误处理）
             if self.google_sheets:
                 logger.info("步骤 6/7: 同步到 Google Sheets")
-                self._sync_to_google_sheets(date_str)
+                try:
+                    self._sync_to_google_sheets(date_str)
+                    status['sheets'] = True
+                    logger.info("   ✅ Google Sheets 同步成功")
+                except Exception as e:
+                    logger.error(f"   ❌ Google Sheets 同步失败: {e}", exc_info=True)
+                    errors.append(f"Sheets: {e}")
 
-            # 7. 完成
-            logger.info(f"✅ {date_str} 数据同步成功！")
+            # 7. 汇总结果
+            logger.info("=" * 80)
+            success_count = sum(status.values())
+            total_count = len([k for k, v in status.items() if k != 'sheets' or self.google_sheets])
+
+            if success_count == total_count:
+                logger.info(f"✅ {date_str} 数据同步完全成功！")
+                logger.info(f"   • 数据库: ✅")
+                logger.info(f"   • Obsidian: ✅")
+                logger.info(f"   • 分析: ✅")
+                if self.google_sheets:
+                    logger.info(f"   • Sheets: ✅")
+            else:
+                logger.warning(f"⚠️ {date_str} 数据同步部分成功 ({success_count}/{total_count})")
+                logger.warning(f"   • 数据库: {'✅' if status['database'] else '❌'}")
+                logger.warning(f"   • Obsidian: {'✅' if status['obsidian'] else '❌'}")
+                logger.warning(f"   • 分析: {'✅' if status['analysis'] else '❌'}")
+                if self.google_sheets:
+                    logger.warning(f"   • Sheets: {'✅' if status['sheets'] else '❌'}")
+                logger.warning(f"   错误详情: {'; '.join(errors)}")
+
             logger.info(f"⏰ 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            flush_logs()  # 立即刷新日志
-            return True
+            logger.info("=" * 80)
+            flush_logs()
+
+            # 至少Obsidian成功就算成功（因为这是最重要的）
+            return status['obsidian']
 
         except Exception as e:
-            logger.error(f"❌ 同步过程出错: {e}", exc_info=True)
-            flush_logs()  # 立即刷新日志
+            logger.error(f"❌ 同步过程严重错误（数据获取失败）: {e}", exc_info=True)
+            flush_logs()
             return self._handle_failure(date, retry_count)
 
     def _save_to_database(self, data: Dict[str, Any]):
