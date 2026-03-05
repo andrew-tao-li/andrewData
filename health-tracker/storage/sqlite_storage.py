@@ -65,6 +65,7 @@ class HealthDatabase:
                 heart_rate INTEGER,
                 resting_heart_rate INTEGER,
                 hrv INTEGER,
+                hrv_night INTEGER,
                 blood_pressure TEXT,
                 vo2_max INTEGER,
 
