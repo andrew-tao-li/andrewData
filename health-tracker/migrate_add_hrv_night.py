@@ -1,72 +1,58 @@
 #!/usr/bin/env python3
 """
-数据库迁移：添加 hrv_night 字段
+数据库迁移：添加hrv_night字段
 
-HRV 数据分为两个字段：
-- hrv: 七天平均 HRV (Garmin 的 weeklyAvg)
-- hrv_night: 夜间平均 HRV (Garmin 的 lastNightAvg)
+为health_records表添加hrv_night列
 """
 
 import sqlite3
 import sys
+from pathlib import Path
 
-def migrate_database(db_path='health_data.db'):
-    """添加 hrv_night 字段"""
+
+def migrate_database(db_path: str):
+    """添加hrv_night字段到health_records表"""
+    print(f"正在迁移数据库: {db_path}")
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
     try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        print("=" * 80)
-        print("数据库迁移：添加 hrv_night 字段")
-        print("=" * 80)
-
-        # 检查字段是否已存在
+        # 检查列是否已存在
         cursor.execute("PRAGMA table_info(health_records)")
-        columns = [col[1] for col in cursor.fetchall()]
+        columns = [row[1] for row in cursor.fetchall()]
 
         if 'hrv_night' in columns:
-            print("✓ hrv_night 字段已存在，无需迁移")
-            conn.close()
+            print("✅ hrv_night字段已存在，无需迁移")
             return True
 
-        # 添加新字段
-        print("\n正在添加 hrv_night 字段...")
-        cursor.execute("""
-            ALTER TABLE health_records
-            ADD COLUMN hrv_night INTEGER
-        """)
-
+        # 添加列
+        print("📝 添加hrv_night字段...")
+        cursor.execute("ALTER TABLE health_records ADD COLUMN hrv_night INTEGER")
         conn.commit()
-        print("✓ hrv_night 字段添加成功")
 
-        # 验证
-        cursor.execute("PRAGMA table_info(health_records)")
-        columns = [col[1] for col in cursor.fetchall()]
-
-        if 'hrv_night' in columns:
-            print("✓ 验证通过：字段已成功添加到数据库")
-        else:
-            print("✗ 验证失败：字段未添加")
-            return False
-
-        conn.close()
-
-        print("\n" + "=" * 80)
-        print("迁移完成！")
-        print("=" * 80)
-        print("\n说明：")
-        print("- hrv: 七天平均 HRV（Garmin weeklyAvg）")
-        print("- hrv_night: 夜间平均 HRV（Garmin lastNightAvg）")
-        print("\n下一步：重新同步 Garmin 数据以填充新字段")
-
+        print("✅ 迁移成功！hrv_night字段已添加")
         return True
 
     except Exception as e:
-        print(f"✗ 迁移失败: {e}")
+        print(f"❌ 迁移失败: {e}")
+        conn.rollback()
         return False
 
+    finally:
+        conn.close()
+
+
 if __name__ == '__main__':
-    db_path = sys.argv[1] if len(sys.argv) > 1 else 'health_data.db'
+    # 默认数据库路径
+    default_db = Path(__file__).parent / 'health_data.db'
+
+    # 允许自定义路径
+    db_path = sys.argv[1] if len(sys.argv) > 1 else str(default_db)
+
+    if not Path(db_path).exists():
+        print(f"❌ 数据库文件不存在: {db_path}")
+        sys.exit(1)
+
     success = migrate_database(db_path)
     sys.exit(0 if success else 1)
