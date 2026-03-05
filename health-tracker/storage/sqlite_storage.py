@@ -429,29 +429,33 @@ class HealthDatabase:
             健康记录列表
         """
         with self._lock:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                SELECT * FROM health_records
-                WHERE date BETWEEN ? AND ?
-                ORDER BY date DESC
-            """, (start_date, end_date))
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM health_records
+                    WHERE date BETWEEN ? AND ?
+                    ORDER BY date DESC
+                """, (start_date, end_date))
 
-            records = []
-            for row in cursor.fetchall():
-                record = dict(row)
-                date = record['date']
+                records = []
+                for row in cursor.fetchall():
+                    record = dict(row)
+                    date = record['date']
 
-                # 获取运动记录
-                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-                record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                    # 获取运动记录
+                    cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                    record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-                # 获取饮食记录
-                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-                record['meals'] = [dict(r) for r in cursor.fetchall()]
+                    # 获取饮食记录
+                    cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                    record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-                records.append(record)
+                    records.append(record)
 
-            return records
+                return records
+            finally:
+                conn.close()
 
     def get_recent_records(self, days: int = 7) -> List[Dict[str, Any]]:
         """
@@ -482,8 +486,10 @@ class HealthDatabase:
             是否保存成功
         """
         with self._lock:
+            conn = None
             try:
-                cursor = self.conn.cursor()
+                conn = self._get_connection()
+                cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO raw_notes
                     (date, file_path, content, metadata, images, tags)
@@ -496,12 +502,17 @@ class HealthDatabase:
                     json.dumps(note_data.get('images', [])),
                     json.dumps(note_data.get('tags', []))
                 ))
-                self.conn.commit()
+                conn.commit()
                 return True
 
             except Exception as e:
                 print(f"Error saving raw note: {e}")
+                if conn:
+                    conn.rollback()
                 return False
+            finally:
+                if conn:
+                    conn.close()
 
     def save_insight(
         self,
@@ -525,19 +536,26 @@ class HealthDatabase:
             是否保存成功
         """
         with self._lock:
+            conn = None
             try:
-                cursor = self.conn.cursor()
+                conn = self._get_connection()
+                cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO insights
                     (date_range_start, date_range_end, insight_type, question, analysis)
                     VALUES (?, ?, ?, ?, ?)
                 """, (start_date, end_date, insight_type, question, analysis))
-                self.conn.commit()
+                conn.commit()
                 return True
 
             except Exception as e:
                 print(f"Error saving insight: {e}")
+                if conn:
+                    conn.rollback()
                 return False
+            finally:
+                if conn:
+                    conn.close()
 
     def get_statistics(self, days: int = 30) -> Dict[str, Any]:
         """
@@ -592,38 +610,46 @@ class HealthDatabase:
     def mark_as_synced(self, date: str):
         """标记记录已同步到Google Sheets"""
         with self._lock:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                UPDATE health_records
-                SET synced_to_sheets = TRUE, last_sync_at = ?
-                WHERE date = ?
-            """, (datetime.now().isoformat(), date))
-            self.conn.commit()
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE health_records
+                    SET synced_to_sheets = TRUE, last_sync_at = ?
+                    WHERE date = ?
+                """, (datetime.now().isoformat(), date))
+                conn.commit()
+            finally:
+                conn.close()
 
     def get_unsynced_records(self) -> List[Dict[str, Any]]:
         """获取未同步的记录"""
         with self._lock:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                SELECT * FROM health_records
-                WHERE synced_to_sheets = FALSE OR synced_to_sheets IS NULL
-                ORDER BY date
-            """)
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM health_records
+                    WHERE synced_to_sheets = FALSE OR synced_to_sheets IS NULL
+                    ORDER BY date
+                """)
 
-            records = []
-            for row in cursor.fetchall():
-                record = dict(row)
-                date = record['date']
+                records = []
+                for row in cursor.fetchall():
+                    record = dict(row)
+                    date = record['date']
 
-                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-                record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                    cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                    record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-                record['meals'] = [dict(r) for r in cursor.fetchall()]
+                    cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                    record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-                records.append(record)
+                    records.append(record)
 
-            return records
+                return records
+            finally:
+                conn.close()
 
     def get_health_record(self, date: str) -> Optional[Dict[str, Any]]:
         """
@@ -655,51 +681,55 @@ class HealthDatabase:
             健康记录列表
         """
         with self._lock:
-            cursor = self.conn.cursor()
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
 
-            if start_date and end_date:
-                # 有日期范围
-                cursor.execute("""
-                    SELECT * FROM health_records
-                    WHERE date BETWEEN ? AND ?
-                    ORDER BY date DESC
-                """, (start_date, end_date))
-            elif start_date:
-                # 只有开始日期
-                cursor.execute("""
-                    SELECT * FROM health_records
-                    WHERE date >= ?
-                    ORDER BY date DESC
-                """, (start_date,))
-            else:
-                # 获取所有记录
-                cursor.execute("""
-                    SELECT * FROM health_records
-                    ORDER BY date DESC
-                """)
+                if start_date and end_date:
+                    # 有日期范围
+                    cursor.execute("""
+                        SELECT * FROM health_records
+                        WHERE date BETWEEN ? AND ?
+                        ORDER BY date DESC
+                    """, (start_date, end_date))
+                elif start_date:
+                    # 只有开始日期
+                    cursor.execute("""
+                        SELECT * FROM health_records
+                        WHERE date >= ?
+                        ORDER BY date DESC
+                    """, (start_date,))
+                else:
+                    # 获取所有记录
+                    cursor.execute("""
+                        SELECT * FROM health_records
+                        ORDER BY date DESC
+                    """)
 
-            # 应用limit
-            if limit:
-                rows = cursor.fetchmany(limit)
-            else:
-                rows = cursor.fetchall()
+                # 应用limit
+                if limit:
+                    rows = cursor.fetchmany(limit)
+                else:
+                    rows = cursor.fetchall()
 
-            records = []
-            for row in rows:
-                record = dict(row)
-                date = record['date']
+                records = []
+                for row in rows:
+                    record = dict(row)
+                    date = record['date']
 
-                # 获取运动记录
-                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-                record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                    # 获取运动记录
+                    cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                    record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-                # 获取饮食记录
-                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-                record['meals'] = [dict(r) for r in cursor.fetchall()]
+                    # 获取饮食记录
+                    cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                    record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-                records.append(record)
+                    records.append(record)
 
-            return records
+                return records
+            finally:
+                conn.close()
 
     def close(self):
         """关闭数据库连接（每次操作都创建新连接，无需手动关闭）"""
