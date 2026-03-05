@@ -6,6 +6,7 @@ SQLite数据库存储
 
 import sqlite3
 import json
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -23,11 +24,14 @@ class HealthDatabase:
         """
         self.db_path = db_path
         self.conn = None
+        self._lock = threading.Lock()  # 线程锁，保护数据库操作
         self._init_database()
 
     def _init_database(self):
         """初始化数据库表结构"""
-        self.conn = sqlite3.connect(self.db_path)
+        # check_same_thread=False 允许多线程使用同一个连接
+        # 使用锁机制保证线程安全
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row  # 返回字典格式
         cursor = self.conn.cursor()
 
@@ -174,137 +178,138 @@ class HealthDatabase:
         Returns:
             是否保存成功
         """
-        try:
-            date = data.get('processed_date') or data.get('date')
-            if not date:
-                print("Error: No date provided")
+        with self._lock:  # 使用锁保护数据库操作
+            try:
+                date = data.get('processed_date') or data.get('date')
+                if not date:
+                    print("Error: No date provided")
+                    return False
+
+                cursor = self.conn.cursor()
+
+                # 检查是否已存在该日期的记录
+                cursor.execute("SELECT id FROM health_records WHERE date = ?", (date,))
+                existing = cursor.fetchone()
+
+                # 准备主记录数据
+                record_data = {
+                    'date': date,
+                    # 体重相关
+                    'weight': data.get('weight'),
+                    'body_fat_percentage': data.get('body_fat_percentage'),
+                    'muscle_mass': data.get('muscle_mass'),
+                    'bmi': data.get('bmi'),
+                    'basal_metabolism': data.get('basal_metabolism'),
+                    'visceral_fat_level': data.get('visceral_fat_level'),
+                    'weight_feeling': data.get('weight_feeling'),
+                    # 睡眠相关
+                    'sleep_duration': data.get('sleep_duration'),
+                    'sleep_start': data.get('sleep_start'),
+                    'sleep_end': data.get('sleep_end'),
+                    'sleep_quality': str(data.get('sleep_quality')) if data.get('sleep_quality') else None,
+                    'deep_sleep_duration': data.get('deep_sleep_duration'),
+                    'light_sleep_duration': data.get('light_sleep_duration'),
+                    'rem_sleep_duration': data.get('rem_sleep_duration'),
+                    'awake_duration': data.get('awake_duration'),
+                    'sleep_notes': data.get('sleep_notes'),
+                    # 心血管相关
+                    'heart_rate': data.get('heart_rate'),
+                    'resting_heart_rate': data.get('resting_heart_rate'),
+                    'hrv': data.get('hrv'),  # 七天平均 HRV
+                    'hrv_night': data.get('hrv_night'),  # 夜间平均 HRV
+                    'blood_pressure': data.get('blood_pressure'),
+                    'vo2_max': data.get('vo2_max'),
+                    # 主观感受
+                    'mood': str(data.get('mood')) if data.get('mood') else None,
+                    'energy_level': str(data.get('energy_level')) if data.get('energy_level') else None,
+                    'overall_feeling': data.get('overall_feeling'),
+                    # 其他指标
+                    'water_intake': data.get('water_intake'),
+                    'steps': data.get('steps'),
+                    'urination_count': data.get('urination_count'),
+                    # 疼痛和症状
+                    'pain_score': data.get('pain_score'),
+                    'pain_location': data.get('pain_location'),
+                    'morning_stiffness_duration': data.get('morning_stiffness_duration'),
+                    'symptoms': data.get('symptoms'),
+                    # 目标和备注
+                    'health_notes': data.get('health_notes'),
+                    'goals': data.get('goals'),
+                    # 原始数据
+                    'raw_text': data.get('raw_text'),
+                    'raw_json': json.dumps(data, ensure_ascii=False),
+                    'has_images': data.get('has_images', False),
+                    'image_count': data.get('image_count', 0),
+                    # 元数据
+                    'updated_at': datetime.now().isoformat()
+                }
+
+                if existing:
+                    # 更新现有记录
+                    set_clause = ', '.join([f"{k} = ?" for k in record_data.keys() if k != 'date'])
+                    values = [v for k, v in record_data.items() if k != 'date']
+                    values.append(date)
+
+                    cursor.execute(f"""
+                        UPDATE health_records
+                        SET {set_clause}
+                        WHERE date = ?
+                    """, values)
+                else:
+                    # 插入新记录
+                    columns = ', '.join(record_data.keys())
+                    placeholders = ', '.join(['?' for _ in record_data])
+                    cursor.execute(f"""
+                        INSERT INTO health_records ({columns})
+                        VALUES ({placeholders})
+                    """, list(record_data.values()))
+
+                # 保存运动记录
+                if 'exercises' in data and data['exercises']:
+                    # 删除旧的运动记录
+                    cursor.execute("DELETE FROM exercises WHERE date = ?", (date,))
+
+                    for exercise in data['exercises']:
+                        cursor.execute("""
+                            INSERT INTO exercises
+                            (date, type, duration, distance, intensity, calories, feeling, notes)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            date,
+                            exercise.get('type'),
+                            exercise.get('duration'),
+                            exercise.get('distance'),
+                            exercise.get('intensity'),
+                            exercise.get('calories'),
+                            exercise.get('feeling'),
+                            exercise.get('notes')
+                        ))
+
+                # 保存饮食记录
+                if 'meals' in data and data['meals']:
+                    # 删除旧的饮食记录
+                    cursor.execute("DELETE FROM meals WHERE date = ?", (date,))
+
+                    for meal in data['meals']:
+                        cursor.execute("""
+                            INSERT INTO meals
+                            (date, meal_type, description, calories, notes)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (
+                            date,
+                            meal.get('meal_type'),
+                            meal.get('description'),
+                            meal.get('calories'),
+                            meal.get('notes')
+                        ))
+
+                self.conn.commit()
+                return True
+
+            except Exception as e:
+                print(f"Error saving health record: {e}")
+                self.conn.rollback()
                 return False
-
-            cursor = self.conn.cursor()
-
-            # 检查是否已存在该日期的记录
-            cursor.execute("SELECT id FROM health_records WHERE date = ?", (date,))
-            existing = cursor.fetchone()
-
-            # 准备主记录数据
-            record_data = {
-                'date': date,
-                # 体重相关
-                'weight': data.get('weight'),
-                'body_fat_percentage': data.get('body_fat_percentage'),
-                'muscle_mass': data.get('muscle_mass'),
-                'bmi': data.get('bmi'),
-                'basal_metabolism': data.get('basal_metabolism'),
-                'visceral_fat_level': data.get('visceral_fat_level'),
-                'weight_feeling': data.get('weight_feeling'),
-                # 睡眠相关
-                'sleep_duration': data.get('sleep_duration'),
-                'sleep_start': data.get('sleep_start'),
-                'sleep_end': data.get('sleep_end'),
-                'sleep_quality': str(data.get('sleep_quality')) if data.get('sleep_quality') else None,
-                'deep_sleep_duration': data.get('deep_sleep_duration'),
-                'light_sleep_duration': data.get('light_sleep_duration'),
-                'rem_sleep_duration': data.get('rem_sleep_duration'),
-                'awake_duration': data.get('awake_duration'),
-                'sleep_notes': data.get('sleep_notes'),
-                # 心血管相关
-                'heart_rate': data.get('heart_rate'),
-                'resting_heart_rate': data.get('resting_heart_rate'),
-                'hrv': data.get('hrv'),  # 七天平均 HRV
-                'hrv_night': data.get('hrv_night'),  # 夜间平均 HRV
-                'blood_pressure': data.get('blood_pressure'),
-                'vo2_max': data.get('vo2_max'),
-                # 主观感受
-                'mood': str(data.get('mood')) if data.get('mood') else None,
-                'energy_level': str(data.get('energy_level')) if data.get('energy_level') else None,
-                'overall_feeling': data.get('overall_feeling'),
-                # 其他指标
-                'water_intake': data.get('water_intake'),
-                'steps': data.get('steps'),
-                'urination_count': data.get('urination_count'),
-                # 疼痛和症状
-                'pain_score': data.get('pain_score'),
-                'pain_location': data.get('pain_location'),
-                'morning_stiffness_duration': data.get('morning_stiffness_duration'),
-                'symptoms': data.get('symptoms'),
-                # 目标和备注
-                'health_notes': data.get('health_notes'),
-                'goals': data.get('goals'),
-                # 原始数据
-                'raw_text': data.get('raw_text'),
-                'raw_json': json.dumps(data, ensure_ascii=False),
-                'has_images': data.get('has_images', False),
-                'image_count': data.get('image_count', 0),
-                # 元数据
-                'updated_at': datetime.now().isoformat()
-            }
-
-            if existing:
-                # 更新现有记录
-                set_clause = ', '.join([f"{k} = ?" for k in record_data.keys() if k != 'date'])
-                values = [v for k, v in record_data.items() if k != 'date']
-                values.append(date)
-
-                cursor.execute(f"""
-                    UPDATE health_records
-                    SET {set_clause}
-                    WHERE date = ?
-                """, values)
-            else:
-                # 插入新记录
-                columns = ', '.join(record_data.keys())
-                placeholders = ', '.join(['?' for _ in record_data])
-                cursor.execute(f"""
-                    INSERT INTO health_records ({columns})
-                    VALUES ({placeholders})
-                """, list(record_data.values()))
-
-            # 保存运动记录
-            if 'exercises' in data and data['exercises']:
-                # 删除旧的运动记录
-                cursor.execute("DELETE FROM exercises WHERE date = ?", (date,))
-
-                for exercise in data['exercises']:
-                    cursor.execute("""
-                        INSERT INTO exercises
-                        (date, type, duration, distance, intensity, calories, feeling, notes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        date,
-                        exercise.get('type'),
-                        exercise.get('duration'),
-                        exercise.get('distance'),
-                        exercise.get('intensity'),
-                        exercise.get('calories'),
-                        exercise.get('feeling'),
-                        exercise.get('notes')
-                    ))
-
-            # 保存饮食记录
-            if 'meals' in data and data['meals']:
-                # 删除旧的饮食记录
-                cursor.execute("DELETE FROM meals WHERE date = ?", (date,))
-
-                for meal in data['meals']:
-                    cursor.execute("""
-                        INSERT INTO meals
-                        (date, meal_type, description, calories, notes)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (
-                        date,
-                        meal.get('meal_type'),
-                        meal.get('description'),
-                        meal.get('calories'),
-                        meal.get('notes')
-                    ))
-
-            self.conn.commit()
-            return True
-
-        except Exception as e:
-            print(f"Error saving health record: {e}")
-            self.conn.rollback()
-            return False
 
     def save_exercise(self, data: Dict[str, Any]) -> bool:
         """
@@ -316,37 +321,38 @@ class HealthDatabase:
         Returns:
             是否保存成功
         """
-        try:
-            date = data.get('date')
-            if not date:
-                print("Error: No date provided for exercise")
+        with self._lock:
+            try:
+                date = data.get('date')
+                if not date:
+                    print("Error: No date provided for exercise")
+                    return False
+
+                cursor = self.conn.cursor()
+
+                # 插入运动记录
+                cursor.execute("""
+                    INSERT INTO exercises
+                    (date, type, duration, distance, intensity, calories, feeling, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    date,
+                    data.get('type'),
+                    data.get('duration'),
+                    data.get('distance'),
+                    data.get('intensity'),
+                    data.get('calories'),
+                    data.get('feeling'),
+                    data.get('notes')
+                ))
+
+                self.conn.commit()
+                return True
+
+            except Exception as e:
+                print(f"Error saving exercise: {e}")
+                self.conn.rollback()
                 return False
-
-            cursor = self.conn.cursor()
-
-            # 插入运动记录
-            cursor.execute("""
-                INSERT INTO exercises
-                (date, type, duration, distance, intensity, calories, feeling, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                date,
-                data.get('type'),
-                data.get('duration'),
-                data.get('distance'),
-                data.get('intensity'),
-                data.get('calories'),
-                data.get('feeling'),
-                data.get('notes')
-            ))
-
-            self.conn.commit()
-            return True
-
-        except Exception as e:
-            print(f"Error saving exercise: {e}")
-            self.conn.rollback()
-            return False
 
     def get_record_by_date(self, date: str) -> Optional[Dict[str, Any]]:
         """
@@ -358,28 +364,29 @@ class HealthDatabase:
         Returns:
             健康记录字典，不存在则返回None
         """
-        cursor = self.conn.cursor()
+        with self._lock:
+            cursor = self.conn.cursor()
 
-        # 获取主记录
-        cursor.execute("SELECT * FROM health_records WHERE date = ?", (date,))
-        record = cursor.fetchone()
+            # 获取主记录
+            cursor.execute("SELECT * FROM health_records WHERE date = ?", (date,))
+            record = cursor.fetchone()
 
-        if not record:
-            return None
+            if not record:
+                return None
 
-        result = dict(record)
+            result = dict(record)
 
-        # 获取运动记录
-        cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-        exercises = [dict(row) for row in cursor.fetchall()]
-        result['exercises'] = exercises
+            # 获取运动记录
+            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+            exercises = [dict(row) for row in cursor.fetchall()]
+            result['exercises'] = exercises
 
-        # 获取饮食记录
-        cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-        meals = [dict(row) for row in cursor.fetchall()]
-        result['meals'] = meals
+            # 获取饮食记录
+            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+            meals = [dict(row) for row in cursor.fetchall()]
+            result['meals'] = meals
 
-        return result
+            return result
 
     def get_records_by_range(
         self,
@@ -396,29 +403,30 @@ class HealthDatabase:
         Returns:
             健康记录列表
         """
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT * FROM health_records
-            WHERE date BETWEEN ? AND ?
-            ORDER BY date DESC
-        """, (start_date, end_date))
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT * FROM health_records
+                WHERE date BETWEEN ? AND ?
+                ORDER BY date DESC
+            """, (start_date, end_date))
 
-        records = []
-        for row in cursor.fetchall():
-            record = dict(row)
-            date = record['date']
+            records = []
+            for row in cursor.fetchall():
+                record = dict(row)
+                date = record['date']
 
-            # 获取运动记录
-            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-            record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                # 获取运动记录
+                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-            # 获取饮食记录
-            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-            record['meals'] = [dict(r) for r in cursor.fetchall()]
+                # 获取饮食记录
+                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-            records.append(record)
+                records.append(record)
 
-        return records
+            return records
 
     def get_recent_records(self, days: int = 7) -> List[Dict[str, Any]]:
         """
@@ -448,26 +456,27 @@ class HealthDatabase:
         Returns:
             是否保存成功
         """
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                INSERT INTO raw_notes
-                (date, file_path, content, metadata, images, tags)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                note_data.get('date'),
-                note_data.get('file_path'),
-                note_data.get('content'),
-                json.dumps(note_data.get('metadata', {})),
-                json.dumps(note_data.get('images', [])),
-                json.dumps(note_data.get('tags', []))
-            ))
-            self.conn.commit()
-            return True
+        with self._lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute("""
+                    INSERT INTO raw_notes
+                    (date, file_path, content, metadata, images, tags)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    note_data.get('date'),
+                    note_data.get('file_path'),
+                    note_data.get('content'),
+                    json.dumps(note_data.get('metadata', {})),
+                    json.dumps(note_data.get('images', [])),
+                    json.dumps(note_data.get('tags', []))
+                ))
+                self.conn.commit()
+                return True
 
-        except Exception as e:
-            print(f"Error saving raw note: {e}")
-            return False
+            except Exception as e:
+                print(f"Error saving raw note: {e}")
+                return False
 
     def save_insight(
         self,
@@ -490,19 +499,20 @@ class HealthDatabase:
         Returns:
             是否保存成功
         """
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute("""
-                INSERT INTO insights
-                (date_range_start, date_range_end, insight_type, question, analysis)
-                VALUES (?, ?, ?, ?, ?)
-            """, (start_date, end_date, insight_type, question, analysis))
-            self.conn.commit()
-            return True
+        with self._lock:
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute("""
+                    INSERT INTO insights
+                    (date_range_start, date_range_end, insight_type, question, analysis)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (start_date, end_date, insight_type, question, analysis))
+                self.conn.commit()
+                return True
 
-        except Exception as e:
-            print(f"Error saving insight: {e}")
-            return False
+            except Exception as e:
+                print(f"Error saving insight: {e}")
+                return False
 
     def get_statistics(self, days: int = 30) -> Dict[str, Any]:
         """
@@ -556,37 +566,39 @@ class HealthDatabase:
 
     def mark_as_synced(self, date: str):
         """标记记录已同步到Google Sheets"""
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            UPDATE health_records
-            SET synced_to_sheets = TRUE, last_sync_at = ?
-            WHERE date = ?
-        """, (datetime.now().isoformat(), date))
-        self.conn.commit()
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                UPDATE health_records
+                SET synced_to_sheets = TRUE, last_sync_at = ?
+                WHERE date = ?
+            """, (datetime.now().isoformat(), date))
+            self.conn.commit()
 
     def get_unsynced_records(self) -> List[Dict[str, Any]]:
         """获取未同步的记录"""
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT * FROM health_records
-            WHERE synced_to_sheets = FALSE OR synced_to_sheets IS NULL
-            ORDER BY date
-        """)
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT * FROM health_records
+                WHERE synced_to_sheets = FALSE OR synced_to_sheets IS NULL
+                ORDER BY date
+            """)
 
-        records = []
-        for row in cursor.fetchall():
-            record = dict(row)
-            date = record['date']
+            records = []
+            for row in cursor.fetchall():
+                record = dict(row)
+                date = record['date']
 
-            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-            record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-            record['meals'] = [dict(r) for r in cursor.fetchall()]
+                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-            records.append(record)
+                records.append(record)
 
-        return records
+            return records
 
     def get_health_record(self, date: str) -> Optional[Dict[str, Any]]:
         """
@@ -617,51 +629,52 @@ class HealthDatabase:
         Returns:
             健康记录列表
         """
-        cursor = self.conn.cursor()
+        with self._lock:
+            cursor = self.conn.cursor()
 
-        if start_date and end_date:
-            # 有日期范围
-            cursor.execute("""
-                SELECT * FROM health_records
-                WHERE date BETWEEN ? AND ?
-                ORDER BY date DESC
-            """, (start_date, end_date))
-        elif start_date:
-            # 只有开始日期
-            cursor.execute("""
-                SELECT * FROM health_records
-                WHERE date >= ?
-                ORDER BY date DESC
-            """, (start_date,))
-        else:
-            # 获取所有记录
-            cursor.execute("""
-                SELECT * FROM health_records
-                ORDER BY date DESC
-            """)
+            if start_date and end_date:
+                # 有日期范围
+                cursor.execute("""
+                    SELECT * FROM health_records
+                    WHERE date BETWEEN ? AND ?
+                    ORDER BY date DESC
+                """, (start_date, end_date))
+            elif start_date:
+                # 只有开始日期
+                cursor.execute("""
+                    SELECT * FROM health_records
+                    WHERE date >= ?
+                    ORDER BY date DESC
+                """, (start_date,))
+            else:
+                # 获取所有记录
+                cursor.execute("""
+                    SELECT * FROM health_records
+                    ORDER BY date DESC
+                """)
 
-        # 应用limit
-        if limit:
-            rows = cursor.fetchmany(limit)
-        else:
-            rows = cursor.fetchall()
+            # 应用limit
+            if limit:
+                rows = cursor.fetchmany(limit)
+            else:
+                rows = cursor.fetchall()
 
-        records = []
-        for row in rows:
-            record = dict(row)
-            date = record['date']
+            records = []
+            for row in rows:
+                record = dict(row)
+                date = record['date']
 
-            # 获取运动记录
-            cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
-            record['exercises'] = [dict(r) for r in cursor.fetchall()]
+                # 获取运动记录
+                cursor.execute("SELECT * FROM exercises WHERE date = ?", (date,))
+                record['exercises'] = [dict(r) for r in cursor.fetchall()]
 
-            # 获取饮食记录
-            cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
-            record['meals'] = [dict(r) for r in cursor.fetchall()]
+                # 获取饮食记录
+                cursor.execute("SELECT * FROM meals WHERE date = ?", (date,))
+                record['meals'] = [dict(r) for r in cursor.fetchall()]
 
-            records.append(record)
+                records.append(record)
 
-        return records
+            return records
 
     def close(self):
         """关闭数据库连接"""
