@@ -5,7 +5,7 @@
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from storage import HealthDatabase
 from extractors import HealthDataExtractor
 
@@ -37,48 +37,175 @@ class HealthAnalyzer:
         records = self.db.get_recent_records(days)
         return records
 
-    def generate_brief_summary(self, days: int = 7) -> str:
+    @staticmethod
+    def _safe_avg(values: List[Optional[float]]) -> Optional[float]:
+        valid = [v for v in values if v is not None]
+        if not valid:
+            return None
+        return sum(valid) / len(valid)
+
+    @staticmethod
+    def _fmt_delta(delta: float, unit: str, digits: int = 1) -> str:
+        return f"{delta:+.{digits}f}{unit}"
+
+    def _sum_exercise_minutes(self, record: Dict[str, Any]) -> int:
+        exercises = record.get('exercises') or []
+        total = 0
+        for ex in exercises:
+            duration = ex.get('duration')
+            if duration is not None:
+                total += int(duration)
+        return total
+
+    def generate_brief_summary(
+        self,
+        days: int = 7,
+        reference_date: Optional[datetime] = None,
+        current_record: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
-        生成简要健康分析（用于日记末尾）
+        生成“当天 + 过去7天基线对比”的简要健康分析（用于日记末尾）
 
         Args:
             days: 分析天数
+            reference_date: 参考日期（通常为当前日记日期）
+            current_record: 当天最新记录（未写入 DB 时用于即时分析）
 
         Returns:
             简要分析文本
         """
-        records = self.get_recent_data(days)
+        today = (reference_date.date() if reference_date else datetime.now().date())
+        target_date = today.isoformat()
 
-        if not records or len(records) == 0:
-            return f"### 近{days}天概况\n\n暂无数据"
+        # 当天记录优先使用调用方传入的最新数据，确保中午同步时分析的是“今天”。
+        target_record = None
+        if current_record and current_record.get('date') == target_date:
+            target_record = current_record
+        else:
+            target_record = self.db.get_record_by_date(target_date)
 
-        # 计算统计数据
-        sleep_durations = [r.get('sleep_duration') for r in records if r.get('sleep_duration')]
-        hrvs = [r.get('hrv') for r in records if r.get('hrv')]
-        resting_hrs = [r.get('resting_heart_rate') for r in records if r.get('resting_heart_rate')]
+        if not target_record:
+            if current_record:
+                target_record = current_record
+                target_date = current_record.get('date', target_date)
+            else:
+                return f"### 近{days}天健康分析\n\n暂无 {target_date} 的可用数据。"
 
-        stats = []
+        baseline_end = today - timedelta(days=1)
+        baseline_start = baseline_end - timedelta(days=days - 1)
+        compare_pool = []
+        if baseline_end >= baseline_start:
+            compare_pool = self.db.get_records_by_range(
+                baseline_start.isoformat(),
+                baseline_end.isoformat()
+            )
 
-        # 睡眠统计
-        if sleep_durations:
-            avg_sleep = sum(sleep_durations) / len(sleep_durations)
-            stats.append(f"- 睡眠质量：平均{avg_sleep:.1f}小时")
+        target_sleep = target_record.get('sleep_duration')
+        target_deep = target_record.get('deep_sleep_duration')
+        target_rem = target_record.get('rem_sleep_duration')
+        target_hrv = target_record.get('hrv')
+        target_rhr = target_record.get('resting_heart_rate')
+        target_ex_minutes = self._sum_exercise_minutes(target_record)
+        target_exercises = target_record.get('exercises') or []
 
-        # HRV 统计
-        if hrvs:
-            avg_hrv = sum(hrvs) / len(hrvs)
-            hrv_range = f"{min(hrvs)}-{max(hrvs)}ms"
-            stats.append(f"- HRV趋势：平均{avg_hrv:.0f}ms（范围 {hrv_range}）")
+        avg_sleep = self._safe_avg([r.get('sleep_duration') for r in compare_pool])
+        avg_hrv = self._safe_avg([r.get('hrv') for r in compare_pool])
+        avg_rhr = self._safe_avg([r.get('resting_heart_rate') for r in compare_pool])
+        avg_ex_minutes = self._safe_avg([self._sum_exercise_minutes(r) for r in compare_pool])
 
-        # 心率统计
-        if resting_hrs:
-            avg_hr = sum(resting_hrs) / len(resting_hrs)
-            stats.append(f"- 心率状态：静息{avg_hr:.0f} bpm")
+        compares = []
+        improved = []
+        declined = []
+        cautions = []
 
-        summary = f"""### 近{days}天概况
-{chr(10).join(stats)}
+        if target_sleep is not None and avg_sleep is not None:
+            sleep_diff = target_sleep - avg_sleep
+            compares.append(f"- 睡眠时长：{target_sleep:.2f}h（过去{days}天基线 {avg_sleep:.2f}h，{self._fmt_delta(sleep_diff, 'h', 2)}）")
+            if sleep_diff >= 0.30:
+                improved.append(f"睡眠时长高于过去{days}天基线 {sleep_diff:.2f}h。")
+            elif sleep_diff <= -0.30:
+                declined.append(f"睡眠时长低于过去{days}天基线 {abs(sleep_diff):.2f}h。")
 
-详细分析：[[Health/分析/{datetime.now().strftime('%Y-%m')} 健康分析]]"""
+        if target_hrv is not None and avg_hrv is not None:
+            hrv_diff = target_hrv - avg_hrv
+            compares.append(f"- HRV：{target_hrv:.0f}（过去{days}天基线 {avg_hrv:.1f}，{self._fmt_delta(hrv_diff, '', 1)}）")
+            if hrv_diff >= 2:
+                improved.append(f"HRV 高于基线 {hrv_diff:.1f}，恢复状态偏好。")
+            elif hrv_diff <= -2:
+                declined.append(f"HRV 低于基线 {abs(hrv_diff):.1f}，恢复压力偏高。")
+
+        if target_rhr is not None and avg_rhr is not None:
+            rhr_diff = target_rhr - avg_rhr
+            compares.append(f"- 静息心率：{target_rhr:.0f}bpm（过去{days}天基线 {avg_rhr:.1f}bpm，{self._fmt_delta(rhr_diff, 'bpm', 1)}）")
+            if rhr_diff <= -1:
+                improved.append(f"静息心率低于基线 {abs(rhr_diff):.1f}bpm，恢复较好。")
+            elif rhr_diff >= 1:
+                declined.append(f"静息心率高于基线 {rhr_diff:.1f}bpm，需关注疲劳累积。")
+
+        if avg_ex_minutes is not None:
+            ex_diff = target_ex_minutes - avg_ex_minutes
+            compares.append(f"- 运动时长：{target_ex_minutes} 分钟（过去{days}天基线 {avg_ex_minutes:.1f} 分钟，{self._fmt_delta(ex_diff, ' 分钟', 1)}）")
+            if ex_diff >= 20:
+                improved.append(f"今日运动负荷高于过去{days}天常态。")
+            elif ex_diff <= -20:
+                declined.append(f"今日运动明显少于过去{days}天常态。")
+
+        if target_sleep is not None and target_sleep < 7:
+            cautions.append("昨夜总睡眠低于 7 小时，优先补足睡眠。")
+        if target_sleep and target_deep and target_sleep > 0:
+            deep_ratio = target_deep / target_sleep
+            if deep_ratio < 0.18:
+                cautions.append("深睡占比偏低，晚间减少刺激并提前放松。")
+        if target_hrv is not None and avg_hrv is not None and target_hrv < avg_hrv - 3:
+            cautions.append("HRV 显著低于基线，建议降低训练强度。")
+        if target_rhr is not None and avg_rhr is not None and target_rhr > avg_rhr + 2:
+            cautions.append("静息心率高于基线较多，注意恢复和补水。")
+        if target_ex_minutes == 0:
+            cautions.append("今日暂无运动记录，可安排低强度活动保持节律。")
+
+        exercise_line = "- 今日运动：无记录"
+        if target_exercises:
+            types = []
+            for ex in target_exercises:
+                ex_type = ex.get('type')
+                if ex_type:
+                    types.append(ex_type)
+            unique_types = "、".join(sorted(set(types))) if types else "有运动记录"
+            exercise_line = (
+                f"- 今日运动：{len(target_exercises)} 次，累计 {target_ex_minutes} 分钟（{unique_types}）"
+            )
+
+        improved_text = "\n".join(f"- {x}" for x in improved) if improved else "- 暂无显著提升项。"
+        declined_text = "\n".join(f"- {x}" for x in declined) if declined else "- 暂无显著下降项。"
+        caution_text = "\n".join(f"- {x}" for x in cautions) if cautions else "- 状态整体平稳，保持当前节奏。"
+        compare_text = "\n".join(compares) if compares else "- 近7天对比数据不足。"
+
+        summary = f"""### 近{days}天健康分析（重点回顾 {target_date}）
+
+**今日回顾（截至当前同步时刻）**
+- 昨夜睡眠（记入 {target_date}）：{target_sleep:.2f}h（深睡 {target_deep:.2f}h，REM {target_rem:.2f}h）""" if (
+            target_sleep is not None and target_deep is not None and target_rem is not None
+        ) else f"""### 近{days}天健康分析（重点回顾 {target_date}）
+
+**今日回顾（截至当前同步时刻）**
+- 昨夜睡眠（记入 {target_date}）：数据不完整"""
+
+        summary += f"""
+{exercise_line}
+
+**与过去{days}天基线对比（{baseline_start.isoformat()} ~ {baseline_end.isoformat()}）**
+{compare_text}
+
+**提升项**
+{improved_text}
+
+**下降项**
+{declined_text}
+
+**后续注意**
+{caution_text}
+
+详细分析：[[Health/分析/{today.strftime('%Y-%m')} 健康分析]]"""
 
         return summary
 

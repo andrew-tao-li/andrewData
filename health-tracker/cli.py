@@ -8,6 +8,7 @@ Health Tracker CLI
 import os
 import sys
 import json
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
@@ -99,6 +100,67 @@ def create_extractor(config: dict) -> HealthDataExtractor:
             model=model,
             use_openrouter=False
         )
+
+
+def get_google_sync_config(config: dict) -> tuple[bool, str, str]:
+    """解析 Google Sheets 同步配置。"""
+    enabled = bool(config.get('google_sheets_enabled', False))
+    credentials_file = (
+        config.get('google_sheets_credentials') or
+        config.get('google_credentials_file') or
+        ''
+    ).strip()
+    sheet_id = (config.get('google_sheet_id') or '').strip()
+    return enabled, credentials_file, sheet_id
+
+
+def sync_single_day_to_google_sheets(
+    config: dict,
+    db: HealthDatabase,
+    date_str: str,
+    max_retries: int = 3,
+    retry_seconds: int = 3
+) -> bool:
+    """
+    将指定日期的一条记录同步到 Google Sheets（带重试）。
+
+    Returns:
+        是否同步成功（若未启用 Google Sheets，则返回 True）
+    """
+    enabled, credentials_file, sheet_id = get_google_sync_config(config)
+
+    if not enabled:
+        console.print("[dim]ℹ️  Google Sheets 未启用，跳过云端同步[/dim]")
+        return True
+
+    if not credentials_file or not sheet_id:
+        console.print("[red]✗ Google Sheets 已启用，但配置缺失[/red]")
+        console.print("[yellow]请检查 google_sheet_id 与 google_credentials_file[/yellow]")
+        return False
+
+    record = db.get_record_by_date(date_str)
+    if not record:
+        console.print(f"[red]✗ 无法同步 Google Sheets：本地数据库无 {date_str} 记录[/red]")
+        return False
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            sheets_sync = GoogleSheetsSync(credentials_file, sheet_id)
+            if sheets_sync.sync_records([record]):
+                db.mark_as_synced(date_str)
+                console.print(f"[green]✓ Google Sheets 同步成功: {date_str}[/green]")
+                return True
+            error_msg = "sync_records 返回 False"
+        except Exception as e:
+            error_msg = str(e)
+
+        console.print(
+            f"[yellow]⚠️  Google Sheets 同步失败（尝试 {attempt}/{max_retries}）: {error_msg}[/yellow]"
+        )
+        if attempt < max_retries:
+            time.sleep(retry_seconds)
+
+    return False
 
 
 def save_report_to_file(config: dict, analysis: str, period: str, report_date: datetime):
@@ -668,7 +730,7 @@ def garmin_sync(date: str, force: bool):
         if not garmin.validate_data(data, required_fields):
             console.print("[yellow]⚠️  数据不完整，但仍会保存[/yellow]")
 
-        # 保存到数据库
+        # 初始化数据库对象（用于趋势对比与后续写入）
         db = HealthDatabase(config.get('database_path', 'health_data.db'))
 
         health_record = {
@@ -681,19 +743,20 @@ def garmin_sync(date: str, force: bool):
             'resting_heart_rate': data['heart_rate'].get('resting_heart_rate') if data.get('heart_rate') else None,
         }
 
-        db.save_health_record(health_record)
-
-        # 保存运动记录
+        # 先构造当天即时分析记录（保证分析使用“今天”）
+        analysis_record = dict(health_record)
+        analysis_record['exercises'] = []
         if data.get('activities'):
             for activity in data['activities']:
-                exercise_data = {
-                    'date': data['date'],
-                    'type': activity.get('type'),
-                    'duration': int(activity.get('duration', 0)),
-                    'distance': activity.get('distance'),
-                    'calories': activity.get('calories'),
-                }
-                db.save_exercise(exercise_data)
+                raw_duration = activity.get('duration', 0)
+                try:
+                    duration = int(float(raw_duration))
+                except (TypeError, ValueError):
+                    duration = 0
+                analysis_record['exercises'].append({
+                    'type': activity.get('type') or activity.get('activity_name'),
+                    'duration': duration
+                })
 
         # 写入 Obsidian
         obsidian = ObsidianWriter(
@@ -703,14 +766,49 @@ def garmin_sync(date: str, force: bool):
         )
 
         create_if_missing = config.get('create_daily_note_if_missing', True)
-        obsidian.write_health_log(date_obj, data, create_if_missing)
+        if not obsidian.write_health_log(date_obj, data, create_if_missing):
+            console.print("[red]✗ Obsidian 健康日志写入失败[/red]")
+            return
 
         # 生成分析
         extractor = create_extractor(config)
         analyzer = HealthAnalyzer(db, extractor)
 
-        brief_analysis = analyzer.generate_brief_summary(days=7)
-        obsidian.append_analysis(date_obj, brief_analysis)
+        brief_analysis = analyzer.generate_brief_summary(
+            days=7,
+            reference_date=date_obj,
+            current_record=analysis_record
+        )
+        if not obsidian.append_analysis(date_obj, brief_analysis):
+            console.print("[red]✗ Obsidian 健康分析写入失败[/red]")
+            return
+
+        # 保存到本地数据库（优先级在 Obsidian 之后）
+        if not db.save_health_record(health_record):
+            console.print("[red]✗ 本地数据库写入失败[/red]")
+            return
+
+        # 保存运动记录
+        if data.get('activities'):
+            for activity in data['activities']:
+                raw_duration = activity.get('duration', 0)
+                try:
+                    duration = int(float(raw_duration))
+                except (TypeError, ValueError):
+                    duration = 0
+                exercise_data = {
+                    'date': data['date'],
+                    'type': activity.get('type'),
+                    'duration': duration,
+                    'distance': activity.get('distance'),
+                    'calories': activity.get('calories'),
+                }
+                db.save_exercise(exercise_data)
+
+        # 同步到 Google Sheets（若启用）
+        if not sync_single_day_to_google_sheets(config, db, data['date']):
+            console.print("[red]✗ 本次任务未完成：Google Sheets 同步失败[/red]")
+            return
 
         console.print("[green]✓ Garmin 数据同步成功！[/green]")
 

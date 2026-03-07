@@ -253,7 +253,9 @@ HRV_ms：{hrv_data.get('weekly_avg') or '_（待填写）_'}{' ✓' if hrv_data.
             # 检查是否已有分析部分
             if title in content:
                 # 替换现有分析
-                pattern = re.escape(title) + r'.*?(?=\n##|\Z)'
+                # 仅在遇到下一个二级标题（"## "）时停止，避免把三级标题("###")
+                # 误判为分段边界导致旧内容残留。
+                pattern = re.escape(title) + r'.*?(?=\n##\s|\Z)'
                 new_content = re.sub(pattern, title + "\n\n" + analysis, content, flags=re.DOTALL)
                 print(f"✓ 更新现有分析")
             else:
