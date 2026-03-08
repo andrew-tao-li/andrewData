@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import sys
+from difflib import SequenceMatcher
 from datetime import datetime
 from html import unescape
 from pathlib import Path
@@ -162,20 +163,39 @@ def sync_once(config_path: Path, state_file: Path) -> int:
 
     state = load_json(state_file)
     last_note_id = state.get("note_id", "")
-    last_len = int(state.get("last_len", 0) or 0)
+    last_source_text = state.get("last_source_text")
+    delta = ""
 
     if last_note_id != note_id:
-        last_len = 0
-
-    if last_len > len(source_text):
-        # Source note was edited/shortened; restart from beginning safely.
-        last_len = 0
-
-    delta = source_text[last_len:].strip()
+        # Note changed: treat current text as fresh content.
+        delta = source_text.strip()
+    elif isinstance(last_source_text, str):
+        # Robust mode: detect inserted/replaced segments anywhere in note body.
+        matcher = SequenceMatcher(a=last_source_text, b=source_text)
+        pieces = []
+        for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+            if tag in ("insert", "replace"):
+                seg = source_text[j1:j2].strip()
+                if seg:
+                    pieces.append(seg)
+        if pieces:
+            deduped = []
+            for seg in pieces:
+                if not deduped or deduped[-1] != seg:
+                    deduped.append(seg)
+            delta = "\n\n".join(deduped).strip()
+    else:
+        # Compatibility mode for old state files that only track last_len.
+        last_len = int(state.get("last_len", 0) or 0)
+        if 0 <= last_len <= len(source_text):
+            delta = source_text[last_len:].strip()
+        else:
+            delta = source_text.strip()
 
     new_state = {
         "note_id": note_id,
         "last_len": len(source_text),
+        "last_source_text": source_text,
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source_note_title": source_title,
     }
