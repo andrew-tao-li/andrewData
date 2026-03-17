@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launchd-triggered guard that ensures today's Garmin sync runs once between 12:00 and 18:00.
+# Launchd-triggered guard that ensures today's Garmin sync runs once between 12:00 and 16:00.
 
 set -u
 
@@ -41,8 +41,8 @@ trap cleanup EXIT
 # Keep only recent success markers.
 find "$STATE_DIR" -name 'success-*.flag' -mtime +30 -delete 2>/dev/null || true
 
-if [ "$CURRENT_HOUR" -lt 12 ] || [ "$CURRENT_HOUR" -gt 18 ]; then
-    log "skip: outside allowed window 12:00-18:59 (current_hour=${CURRENT_HOUR_RAW})"
+if [ "$CURRENT_HOUR" -lt 12 ] || [ "$CURRENT_HOUR" -gt 16 ]; then
+    log "skip: outside allowed window 12:00-16:59 (current_hour=${CURRENT_HOUR_RAW})"
     exit 0
 fi
 
@@ -70,7 +70,7 @@ while IFS= read -r line; do
 done < "$OUTPUT_FILE"
 
 # 只有“完整成功”才创建当天 marker。
-# 若出现数据不完整/关键字段缺失，则继续按小时重试（12:00-18:00）。
+# 若出现数据不完整/关键字段缺失，则继续按小时重试（12:00-16:00）。
 HAS_SUCCESS=0
 HAS_INCOMPLETE=0
 

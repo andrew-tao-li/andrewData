@@ -10,13 +10,13 @@ python3 -m cli garmin-sync --date today
 
 Schedule rules:
 - Run at 12:00.
-- Between 12:00 and 18:00, check every hour.
+- Between 12:00 and 16:00, check every hour.
 - If today already succeeded, skip (no duplicate write).
 
 ## Files
 
 - `garmin-sync-guard.sh`: guarded executor (success marker + lock + logging).
-- `com.health-tracker.garmin-guard.plist`: launchd schedule (12:00..18:00 hourly).
+- `com.health-tracker.garmin-guard.plist`: launchd schedule (12:00..16:00 hourly).
 - `setup-garmin-guard.sh`: installer for LaunchAgent.
 
 ## Install

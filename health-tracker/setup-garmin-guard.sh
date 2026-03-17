@@ -52,7 +52,7 @@ else
 fi
 
 echo ""
-echo "Automation window: 12:00-18:00 every hour."
+echo "Automation window: 12:00-16:00 every hour."
 echo "Command guarded: python3 -m cli garmin-sync --date today"
 echo ""
 echo "Useful commands:"
