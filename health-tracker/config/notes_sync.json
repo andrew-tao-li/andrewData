@@ -3,5 +3,9 @@
   "source_note_title": "晨间语音备忘",
   "obsidian_vault_path": "/Users/taoli/Documents/Hercules",
   "memo_section_start": "（今日备忘）",
-  "memo_section_end": "（今日备忘结束）"
+  "memo_section_end": "（今日备忘结束）",
+  "truncate_reset_enabled": true,
+  "truncate_reset_min_shrink_ratio": 0.35,
+  "truncate_reset_max_similarity": 0.85,
+  "clear_source_after_sync": true
 }

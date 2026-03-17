@@ -118,6 +118,8 @@ class ObsidianWriter:
         hrv_data = data.get('hrv', {}) or {}
         heart_rate = data.get('heart_rate', {}) or {}
         activities = data.get('activities', []) or []
+        resting_hr = heart_rate.get('resting_heart_rate') or sleep.get('resting_heart_rate')
+        night_avg_hr = heart_rate.get('avg_heart_rate') or sleep.get('avg_heart_rate')
 
         # 格式化睡眠时长
         def format_duration(hours):
@@ -161,8 +163,8 @@ class ObsidianWriter:
 睡眠时长：{format_duration(sleep.get('sleep_duration'))}
 深度睡眠：{format_duration(sleep.get('deep_sleep_duration'))}
 REM睡眠：{format_duration(sleep.get('rem_sleep_duration'))}
-静息心率_bpm：{heart_rate.get('resting_heart_rate') or '_（待填写）_'}{' ✓' if heart_rate.get('resting_heart_rate') else ''}
-夜间平均心率_bpm：{heart_rate.get('avg_heart_rate') or '_（待填写）_'}{' ✓' if heart_rate.get('avg_heart_rate') else ''}
+静息心率_bpm：{resting_hr or '_（待填写）_'}{' ✓' if resting_hr else ''}
+夜间平均心率_bpm：{night_avg_hr or '_（待填写）_'}{' ✓' if night_avg_hr else ''}
 HRV_ms：{hrv_data.get('weekly_avg') or '_（待填写）_'}{' ✓' if hrv_data.get('weekly_avg') else ''}
 夜间平均HRV_ms：{hrv_data.get('hrv') or '_（待填写）_'}{' ✓' if hrv_data.get('hrv') else ''}
 夜间排尿次数：{data.get('urination_count') or '_（待填写）_'}
@@ -249,14 +251,18 @@ HRV_ms：{hrv_data.get('weekly_avg') or '_（待填写）_'}{' ✓' if hrv_data.
                 return False
 
             content = self.read_note(note_path)
+            memo_section_start = "（今日备忘）"
 
             # 检查是否已有分析部分
             if title in content:
-                # 替换现有分析
-                # 仅在遇到下一个二级标题（"## "）时停止，避免把三级标题("###")
-                # 误判为分段边界导致旧内容残留。
-                pattern = re.escape(title) + r'.*?(?=\n##\s|\Z)'
-                new_content = re.sub(pattern, title + "\n\n" + analysis, content, flags=re.DOTALL)
+                # 替换现有分析，同时保留后续的“今日备忘”等非分析区块。
+                start_idx = content.find(title)
+                next_header_idx = content.find("\n## ", start_idx + len(title))
+                next_memo_idx = content.find(f"\n{memo_section_start}", start_idx + len(title))
+                candidates = [idx for idx in (next_header_idx, next_memo_idx) if idx != -1]
+                end_idx = min(candidates) if candidates else len(content)
+                replacement = title + "\n\n" + analysis.rstrip() + "\n"
+                new_content = content[:start_idx] + replacement + content[end_idx:]
                 print(f"✓ 更新现有分析")
             else:
                 # 添加新分析

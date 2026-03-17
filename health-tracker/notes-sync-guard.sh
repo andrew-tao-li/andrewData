@@ -36,7 +36,12 @@ OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/notes-sync.XXXXXX")"
 CMD_EXIT=0
 
 log "start: syncing iPhone Notes to Obsidian"
-/usr/bin/python3 "$SCRIPT_DIR/notes_to_obsidian_sync.py" >"$OUTPUT_FILE" 2>&1 || CMD_EXIT=$?
+PYTHON_BIN="/usr/bin/python3"
+if [ -x "$SCRIPT_DIR/venv/bin/python3" ]; then
+    PYTHON_BIN="$SCRIPT_DIR/venv/bin/python3"
+fi
+log "using python: $PYTHON_BIN"
+"$PYTHON_BIN" "$SCRIPT_DIR/notes_to_obsidian_sync.py" >"$OUTPUT_FILE" 2>&1 || CMD_EXIT=$?
 while IFS= read -r line; do
     log "cmd: $line"
 done < "$OUTPUT_FILE"

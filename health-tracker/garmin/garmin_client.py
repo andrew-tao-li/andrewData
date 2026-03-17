@@ -117,20 +117,30 @@ class GarminClient:
                 return None
 
             daily_sleep = sleep_data['dailySleepDTO']
+            sleep_scores = daily_sleep.get('sleepScores') or {}
+            overall_score = (sleep_scores.get('overall') or {}).get('value')
+
+            # Garmin 部分天会返回字段存在但值为 null；这里统一兜底，避免整段睡眠解析失败。
+            def hours_from_seconds(value: Any) -> float:
+                try:
+                    return round((float(value) if value is not None else 0.0) / 3600, 2)
+                except (TypeError, ValueError):
+                    return 0.0
 
             # 睡眠阶段数据直接在 dailySleepDTO 下，不在 sleepLevels 中
             result = {
-                'sleep_duration': round(daily_sleep.get('sleepTimeSeconds', 0) / 3600, 2),
-                'deep_sleep_duration': round(daily_sleep.get('deepSleepSeconds', 0) / 3600, 2),
-                'rem_sleep_duration': round(daily_sleep.get('remSleepSeconds', 0) / 3600, 2),
-                'light_sleep_duration': round(daily_sleep.get('lightSleepSeconds', 0) / 3600, 2),
-                'awake_duration': round(daily_sleep.get('awakeSleepSeconds', 0) / 3600, 2),
-                'sleep_score': daily_sleep.get('sleepScores', {}).get('overall', {}).get('value'),
+                'sleep_duration': hours_from_seconds(daily_sleep.get('sleepTimeSeconds')),
+                'deep_sleep_duration': hours_from_seconds(daily_sleep.get('deepSleepSeconds')),
+                'rem_sleep_duration': hours_from_seconds(daily_sleep.get('remSleepSeconds')),
+                'light_sleep_duration': hours_from_seconds(daily_sleep.get('lightSleepSeconds')),
+                'awake_duration': hours_from_seconds(daily_sleep.get('awakeSleepSeconds')),
+                'sleep_score': overall_score,
                 'sleep_start': daily_sleep.get('sleepStartTimestampLocal'),
                 'sleep_end': daily_sleep.get('sleepEndTimestampLocal'),
                 'avg_spo2': daily_sleep.get('averageSpO2Value'),
                 'avg_respiration': daily_sleep.get('averageRespirationValue'),
                 'resting_heart_rate': sleep_data.get('restingHeartRate'),  # 从睡眠数据中获取静息心率
+                'avg_heart_rate': daily_sleep.get('avgHeartRate'),
             }
 
             return result
@@ -162,11 +172,10 @@ class GarminClient:
             # 获取 HRV 数据
             hrv_data = self.garmin.get_hrv_data(date_str)
 
-            if not hrv_data or 'hrvSummary' not in hrv_data:
+            hrv_summary = (hrv_data or {}).get('hrvSummary') or {}
+            if not hrv_summary:
                 print(f"⚠️  {date_str} 无 HRV 数据")
                 return None
-
-            hrv_summary = hrv_data['hrvSummary']
 
             result = {
                 'hrv': hrv_summary.get('lastNightAvg'),

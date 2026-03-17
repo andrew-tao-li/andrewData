@@ -50,6 +50,9 @@ Thumbs.db
 
 # Logs
 *.log
+logs/guard-state/
+logs/notes-sync-archive/
+logs/notes-sync-state.json
 
 # Test coverage
 .coverage

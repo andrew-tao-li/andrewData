@@ -24,6 +24,16 @@
 ## 日常效果
 - 你在 iPhone 说话记录后，无需手工复制。
 - 17:40/17:55 自动导入到当天 Obsidian 日记的 `（今日备忘）...（今日备忘结束）` 区块。
+- 已默认开启：写入 Obsidian 成功后，自动清空《晨间语音备忘》正文（保留标题）。
+- 每次成功同步前，会先把本次口述内容归档到本地 `logs/notes-sync-archive/`，便于回溯。
+
+## 清空备忘录也可继续用
+- 你可以在同一个《晨间语音备忘》里随时删除或清空内容，然后继续口述。
+- 脚本已开启“删减重置”识别：当检测到内容被大幅删减/重写时，会把当前内容当作新的起点继续同步，不要求你改标题。
+- 相关配置在 `config/notes_sync.json`：
+  - `truncate_reset_enabled`
+  - `truncate_reset_min_shrink_ratio`
+  - `truncate_reset_max_similarity`
 
 ## 手动触发（排障）
 - `./notes-sync-guard.sh`
