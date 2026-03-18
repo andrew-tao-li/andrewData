@@ -728,7 +728,8 @@ def garmin_sync(date: str, force: bool):
         # 验证数据
         required_fields = config.get('garmin_required_fields', ['sleep_duration', 'hrv'])
         if not garmin.validate_data(data, required_fields):
-            console.print("[yellow]⚠️  数据不完整，但仍会保存[/yellow]")
+            console.print("[yellow]⚠️  数据不完整，本次跳过写入 Obsidian / 本地数据库 / Google Sheets，稍后自动重试[/yellow]")
+            raise SystemExit(1)
 
         # 初始化数据库对象（用于趋势对比与后续写入）
         db = HealthDatabase(config.get('database_path', 'health_data.db'))

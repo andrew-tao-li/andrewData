@@ -120,12 +120,26 @@ class GarminClient:
             sleep_scores = daily_sleep.get('sleepScores') or {}
             overall_score = (sleep_scores.get('overall') or {}).get('value')
 
-            # Garmin 部分天会返回字段存在但值为 null；这里统一兜底，避免整段睡眠解析失败。
-            def hours_from_seconds(value: Any) -> float:
+            core_sleep_fields = [
+                daily_sleep.get('sleepTimeSeconds'),
+                daily_sleep.get('deepSleepSeconds'),
+                daily_sleep.get('lightSleepSeconds'),
+                daily_sleep.get('remSleepSeconds'),
+                daily_sleep.get('sleepStartTimestampLocal'),
+                daily_sleep.get('sleepEndTimestampLocal'),
+            ]
+            if all(value is None for value in core_sleep_fields):
+                print(f"⚠️  {date_str} 睡眠接口返回空记录")
+                return None
+
+            # Garmin 部分天会返回字段存在但值为 null；这里保留 None，避免把空数据误记为 0 小时睡眠。
+            def hours_from_seconds(value: Any) -> Optional[float]:
+                if value is None:
+                    return None
                 try:
-                    return round((float(value) if value is not None else 0.0) / 3600, 2)
+                    return round(float(value) / 3600, 2)
                 except (TypeError, ValueError):
-                    return 0.0
+                    return None
 
             # 睡眠阶段数据直接在 dailySleepDTO 下，不在 sleepLevels 中
             result = {
@@ -223,6 +237,10 @@ class GarminClient:
                     resting_hr = rhr_data[0].get('value')
             except (KeyError, IndexError, TypeError):
                 pass
+
+            if resting_hr is None:
+                print(f"⚠️  {date_str} 无静息心率数据")
+                return None
 
             result = {
                 'resting_heart_rate': resting_hr,
