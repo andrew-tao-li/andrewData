@@ -9,7 +9,7 @@ import subprocess
 import sys
 from difflib import SequenceMatcher
 from datetime import datetime
-from html import unescape
+from html import escape, unescape
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -56,6 +56,11 @@ def escape_applescript(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def empty_note_body_html(note_title: str) -> str:
+    safe_title = escape(note_title)
+    return f"<div>{safe_title}</div><div><br></div>"
+
+
 def run_osascript(script: str) -> str:
     proc = subprocess.run(
         ["osascript", "-e", script],
@@ -68,17 +73,26 @@ def run_osascript(script: str) -> str:
     return proc.stdout
 
 
-def get_or_create_note_html(note_title: str) -> Tuple[str, str]:
+def get_or_create_note_html(note_title: str, preferred_note_id: str = "") -> Tuple[str, str]:
     title = escape_applescript(note_title)
+    preferred_id = escape_applescript(preferred_note_id)
+    empty_body = escape_applescript(empty_note_body_html(note_title))
     script = f'''
     tell application "Notes"
         set noteTitle to "{title}"
         set targetNote to missing value
+        if "{preferred_id}" is not "" then
+            try
+                set targetNote to first note whose id is "{preferred_id}"
+            end try
+        end if
         try
-            set targetNote to first note whose name is noteTitle
+            if targetNote is missing value then
+                set targetNote to first note whose name is noteTitle
+            end if
         end try
         if targetNote is missing value then
-            set targetNote to make new note with properties {{name:noteTitle, body:"<div></div>"}}
+            set targetNote to make new note with properties {{name:noteTitle, body:"{empty_body}"}}
         end if
         return (id of targetNote) & "<<<SEP>>>" & (body of targetNote)
     end tell
@@ -90,8 +104,9 @@ def get_or_create_note_html(note_title: str) -> Tuple[str, str]:
     return note_id.strip(), body.strip()
 
 
-def clear_note_body_by_id(note_id: str) -> None:
+def clear_note_body_by_id(note_id: str, note_title: str) -> None:
     note_id_escaped = escape_applescript(note_id)
+    empty_body = escape_applescript(empty_note_body_html(note_title))
     script = f'''
     tell application "Notes"
         set targetNoteID to "{note_id_escaped}"
@@ -102,7 +117,7 @@ def clear_note_body_by_id(note_id: str) -> None:
         if targetNote is missing value then
             error "target note not found by id"
         end if
-        set body of targetNote to "<div></div>"
+        set body of targetNote to "{empty_body}"
     end tell
     '''
     run_osascript(script)
@@ -248,16 +263,15 @@ def sync_once(config_path: Path, state_file: Path) -> int:
     )
     clear_source_after_sync = as_bool(notes_cfg.get("clear_source_after_sync", False), False)
 
-    note_id, body_html = get_or_create_note_html(source_title)
+    state = load_json(state_file)
+    last_note_id = state.get("note_id", "")
+    note_id, body_html = get_or_create_note_html(source_title, preferred_note_id=last_note_id)
     source_text = html_to_text(body_html)
     source_lines = [line.rstrip() for line in source_text.splitlines()]
     # Notes 的 body 在部分系统版本会把标题作为首行返回；这里去掉，避免空内容误导入。
     if source_lines and source_lines[0].strip() == source_title:
         source_lines = source_lines[1:]
     source_text = "\n".join(source_lines).strip()
-
-    state = load_json(state_file)
-    last_note_id = state.get("note_id", "")
     last_source_text = state.get("last_source_text")
     delta = ""
 
@@ -322,7 +336,7 @@ def sync_once(config_path: Path, state_file: Path) -> int:
     source_cleared = False
     if clear_source_after_sync:
         try:
-            clear_note_body_by_id(note_id)
+            clear_note_body_by_id(note_id, source_title)
             source_cleared = True
             print(f"source note cleared -> {source_title}")
         except Exception as e:
