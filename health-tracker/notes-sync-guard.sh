@@ -12,7 +12,6 @@ LOCK_DIR="$STATE_DIR/lock"
 TODAY="$(date '+%Y-%m-%d')"
 TODAY_COMPACT="$(date '+%Y%m%d')"
 RUN_LOG="$LOG_DIR/notes-sync-${TODAY_COMPACT}.log"
-MARKER_FILE="$STATE_DIR/success-${TODAY}.flag"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 
@@ -34,14 +33,6 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap cleanup EXIT
 
-# Keep only recent success markers.
-find "$STATE_DIR" -name 'success-*.flag' -mtime +30 -delete 2>/dev/null || true
-
-if [ -f "$MARKER_FILE" ]; then
-    log "skip: notes sync already succeeded today (${TODAY})"
-    exit 0
-fi
-
 OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/notes-sync.XXXXXX")"
 CMD_EXIT=0
 
@@ -58,15 +49,9 @@ done < "$OUTPUT_FILE"
 
 if [ "$CMD_EXIT" -eq 0 ]; then
     if grep -q "memo synced ->" "$OUTPUT_FILE"; then
-        {
-            echo "date=$TODAY"
-            echo "succeeded_at=$(ts)"
-            echo "command=notes-sync-guard.sh"
-            echo "log=$RUN_LOG"
-        } > "$MARKER_FILE"
-        log "success: marker created -> $MARKER_FILE"
+        log "success: memo content synced this run"
     elif grep -q "no new memo content" "$OUTPUT_FILE"; then
-        log "success: no new memo content, marker not created (will retry next slot)"
+        log "success: no new memo content"
     fi
     rm -f "$OUTPUT_FILE"
     log "success: notes sync finished"

@@ -46,7 +46,7 @@
 {
   "use_openrouter": true,
   "openrouter_api_key": "sk-or-你的OpenRouter密钥",
-  "openrouter_model": "anthropic/claude-3.5-sonnet",
+  "openrouter_model": "anthropic/claude-sonnet-5",
 
   "obsidian_vault_path": "/path/to/vault",
   "database_path": "health_data.db"
@@ -74,7 +74,7 @@
 import os
 
 class HealthDataExtractor:
-    def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20241022",
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
                  use_openrouter: bool = False):
         """
         初始化提取器
@@ -125,7 +125,7 @@ config = load_config()
 if config.get('use_openrouter', False):
     # 使用 OpenRouter
     api_key = config['openrouter_api_key']
-    model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
+    model = config.get('openrouter_model', 'anthropic/claude-sonnet-5')
     extractor = HealthDataExtractor(
         api_key=api_key,
         model=model,
@@ -134,7 +134,7 @@ if config.get('use_openrouter', False):
 else:
     # 使用原生 Anthropic API
     api_key = config['claude_api_key']
-    model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+    model = config.get('claude_model', 'claude-sonnet-5')
     extractor = HealthDataExtractor(
         api_key=api_key,
         model=model,
@@ -148,7 +148,7 @@ OpenRouter 使用不同的模型命名格式：
 
 | Anthropic 官方名称 | OpenRouter 名称 |
 |-------------------|----------------|
-| claude-3-5-sonnet-20241022 | anthropic/claude-3.5-sonnet |
+| claude-sonnet-5 | anthropic/claude-sonnet-5 |
 | claude-3-opus-20240229 | anthropic/claude-3-opus |
 | claude-3-haiku-20240307 | anthropic/claude-3-haiku |
 
@@ -158,7 +158,7 @@ OpenRouter 使用不同的模型命名格式：
 {
   "use_openrouter": true,
   "openrouter_api_key": "sk-or-...",
-  "openrouter_model": "anthropic/claude-3.5-sonnet"
+  "openrouter_model": "anthropic/claude-sonnet-5"
 }
 ```
 
@@ -166,7 +166,7 @@ OpenRouter 使用不同的模型命名格式：
 
 ### Anthropic 官方价格
 
-**Claude 3.5 Sonnet:**
+**Claude Sonnet 4.6:**
 - 输入: $3/百万 tokens
 - 输出: $15/百万 tokens
 
@@ -243,7 +243,7 @@ python cli.py parse --date today
 {
   "use_openrouter": false,
   "claude_api_key": "sk-ant-你的Anthropic密钥",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 
@@ -325,7 +325,7 @@ OpenRouter 的优势是可以轻松切换模型：
 ```
 
 支持的模型：
-- `anthropic/claude-3.5-sonnet`
+- `anthropic/claude-sonnet-5`
 - `anthropic/claude-3-opus`
 - `openai/gpt-4-turbo`
 - `openai/gpt-3.5-turbo`
@@ -377,8 +377,8 @@ cat config/config.json | grep api_key
 ```json
 // 确保使用 OpenRouter 的模型名称格式
 {
-  "openrouter_model": "anthropic/claude-3.5-sonnet"  // ✅
-  // 不是: "claude-3-5-sonnet-20241022"  // ❌
+  "openrouter_model": "anthropic/claude-sonnet-5"  // ✅
+  // 不是: "claude-sonnet-5"  // ❌
 }
 ```
 

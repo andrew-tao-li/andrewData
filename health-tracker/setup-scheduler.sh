@@ -11,6 +11,18 @@ echo "Health Tracker - 调度器安装脚本"
 echo "========================================="
 echo ""
 
+if [ "${HEALTH_TRACKER_ALLOW_LEGACY_SCHEDULER:-}" != "1" ]; then
+    echo "❌ 已阻止：这是旧版常驻 scheduler，会使用过时的同步逻辑。"
+    echo ""
+    echo "当前稳定方案："
+    echo "  • Garmin: com.health-tracker.garmin-guard（12:00, 13:00, 14:00, 15:00, 16:00）"
+    echo "  • 晨间备忘录: com.health-tracker.notes-sync（19:00, 20:00, 21:00, 22:00, 23:00）"
+    echo ""
+    echo "如确需调试旧 scheduler，请显式设置："
+    echo "  HEALTH_TRACKER_ALLOW_LEGACY_SCHEDULER=1 ./setup-scheduler.sh"
+    exit 2
+fi
+
 # 检查 plist 文件是否存在
 if [ ! -f "$PLIST_SRC" ]; then
     echo "❌ 错误: 找不到 $PLIST_NAME"

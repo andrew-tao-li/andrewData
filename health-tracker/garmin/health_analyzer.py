@@ -13,13 +13,13 @@ from extractors import HealthDataExtractor
 class HealthAnalyzer:
     """健康数据分析器"""
 
-    def __init__(self, db: HealthDatabase, ai_extractor: HealthDataExtractor):
+    def __init__(self, db: HealthDatabase, ai_extractor: Optional[HealthDataExtractor] = None):
         """
         初始化分析器
 
         Args:
             db: 健康数据库
-            ai_extractor: AI 数据提取器（用于生成分析）
+            ai_extractor: AI 数据提取器（用于生成详细分析，可选）
         """
         self.db = db
         self.ai = ai_extractor
@@ -256,13 +256,18 @@ class HealthAnalyzer:
 指出需要特别注意的健康指标或异常趋势。
 """
 
+        if not self.ai:
+            return self._generate_basic_analysis(records, days)
+
         try:
-            # 使用 AI 生成分析
-            analysis = self.ai._call_claude(prompt)
-            return analysis
+            # 兼容旧版 AI 封装和当前 HealthDataExtractor。
+            if hasattr(self.ai, "_call_claude"):
+                return self.ai._call_claude(prompt)
+            if hasattr(self.ai, "analyze_trends"):
+                return self.ai.analyze_trends(records, prompt)
+            return self._generate_basic_analysis(records, days)
         except Exception as e:
             print(f"✗ 生成AI分析失败: {e}")
-            # 返回基础统计分析
             return self._generate_basic_analysis(records, days)
 
     def _summarize_records(self, records: List[Dict[str, Any]]) -> str:

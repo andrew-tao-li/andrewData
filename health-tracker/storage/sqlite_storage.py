@@ -172,6 +172,7 @@ class HealthDatabase:
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_date ON health_records(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_exercises_date ON exercises(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_exercises_dedupe ON exercises(date, type, duration, distance, calories)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date)")
 
         conn.commit()
@@ -347,7 +348,40 @@ class HealthDatabase:
                 conn = self._get_connection()
                 cursor = conn.cursor()
 
-                # 插入运动记录
+                # 自动化重试/手动补跑可能重复写入同一条 Garmin 运动。
+                cursor.execute("""
+                    SELECT id FROM exercises
+                    WHERE date = ?
+                      AND COALESCE(type, '') = COALESCE(?, '')
+                      AND COALESCE(duration, -1) = COALESCE(?, -1)
+                      AND ABS(COALESCE(distance, -1.0) - COALESCE(?, -1.0)) < 0.0001
+                      AND COALESCE(calories, -1) = COALESCE(?, -1)
+                    LIMIT 1
+                """, (
+                    date,
+                    data.get('type'),
+                    data.get('duration'),
+                    data.get('distance'),
+                    data.get('calories')
+                ))
+                existing = cursor.fetchone()
+
+                if existing:
+                    cursor.execute("""
+                        UPDATE exercises
+                        SET intensity = COALESCE(?, intensity),
+                            feeling = COALESCE(?, feeling),
+                            notes = COALESCE(?, notes)
+                        WHERE id = ?
+                    """, (
+                        data.get('intensity'),
+                        data.get('feeling'),
+                        data.get('notes'),
+                        existing['id']
+                    ))
+                    conn.commit()
+                    return True
+
                 cursor.execute("""
                     INSERT INTO exercises
                     (date, type, duration, distance, intensity, calories, feeling, notes)

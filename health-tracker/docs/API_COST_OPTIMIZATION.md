@@ -178,7 +178,7 @@ def log_api_call(endpoint, tokens_in, tokens_out, cost):
 
 ```json
 {
-  "claude_model": "claude-3-5-sonnet-20241022",
+  "claude_model": "claude-sonnet-5",
   "parse_images": true,
   "weekly_analysis": true
 }
@@ -193,7 +193,7 @@ def log_api_call(endpoint, tokens_in, tokens_out, cost):
 
 ```json
 {
-  "claude_model": "claude-3-5-sonnet-20241022",
+  "claude_model": "claude-sonnet-5",
   "parse_images": true,
   "daily_reports": true
 }
@@ -221,7 +221,7 @@ def extract_from_note(self, ...):
 
 # 深度分析用 Sonnet（准确）
 def analyze_trends(self, ...):
-    self.model = "claude-3-5-sonnet-20241022"
+    self.model = "claude-sonnet-5"
     ...
 ```
 

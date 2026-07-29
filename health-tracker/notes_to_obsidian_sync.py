@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 from datetime import datetime
 from html import escape, unescape
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_STATE_FILE = ROOT / "logs" / "notes-sync-state.json"
@@ -81,16 +81,30 @@ def get_or_create_note_html(note_title: str, preferred_note_id: str = "") -> Tup
     tell application "Notes"
         set noteTitle to "{title}"
         set targetNote to missing value
-        if "{preferred_id}" is not "" then
+
+        -- iCloud can replace/recreate the source note, making the stored id stale.
+        -- Prefer the newest note with the configured title over a remembered id.
+        repeat with candidateNote in notes
             try
-                set targetNote to first note whose id is "{preferred_id}"
+                if (name of candidateNote as text) is noteTitle then
+                    if targetNote is missing value then
+                        set targetNote to candidateNote
+                    else if (modification date of candidateNote) > (modification date of targetNote) then
+                        set targetNote to candidateNote
+                    end if
+                end if
+            end try
+        end repeat
+
+        if targetNote is missing value and "{preferred_id}" is not "" then
+            try
+                set preferredNote to first note whose id is "{preferred_id}"
+                if (name of preferredNote as text) is noteTitle then
+                    set targetNote to preferredNote
+                end if
             end try
         end if
-        try
-            if targetNote is missing value then
-                set targetNote to first note whose name is noteTitle
-            end if
-        end try
+
         if targetNote is missing value then
             set targetNote to make new note with properties {{name:noteTitle, body:"{empty_body}"}}
         end if
@@ -133,6 +147,77 @@ def html_to_text(body_html: str) -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def common_prefix_length(left: str, right: str) -> int:
+    prefix_len = 0
+    for left_char, right_char in zip(left, right):
+        if left_char != right_char:
+            break
+        prefix_len += 1
+    return prefix_len
+
+
+def trim_leading_memo_separators(text: str) -> str:
+    lines = text.splitlines()
+    idx = 0
+    while idx < len(lines):
+        stripped = lines[idx].strip()
+        if not stripped:
+            idx += 1
+            continue
+        if re.fullmatch(r"[=\-_*#~]{3,}", stripped):
+            idx += 1
+            continue
+        break
+    return "\n".join(lines[idx:]).strip()
+
+
+def load_recent_archived_texts(archive_dir: Path, limit: int = 5) -> List[str]:
+    if not archive_dir.exists():
+        return []
+
+    recent_texts: List[str] = []
+    for path in sorted(archive_dir.glob("*/*.json"), reverse=True):
+        payload = load_json(path)
+        memo_text = str(payload.get("memo_text", "") or "").strip()
+        if not memo_text or memo_text in recent_texts:
+            continue
+        recent_texts.append(memo_text)
+        if len(recent_texts) >= limit:
+            break
+    return recent_texts
+
+
+def strip_replayed_prefix(
+    source_text: str,
+    candidate_texts: List[str],
+    min_chars: int = 80,
+    min_ratio: float = 0.98,
+) -> Tuple[str, int]:
+    current = source_text.strip()
+    best_text = current
+    best_prefix_len = 0
+
+    for candidate in candidate_texts:
+        previous = candidate.strip()
+        if len(previous) < min_chars:
+            continue
+
+        prefix_len = common_prefix_length(previous, current)
+        if prefix_len < min_chars:
+            continue
+
+        prefix_ratio = prefix_len / len(previous)
+        if prefix_ratio < min_ratio:
+            continue
+
+        cleaned = trim_leading_memo_separators(current[prefix_len:])
+        if prefix_len > best_prefix_len:
+            best_prefix_len = prefix_len
+            best_text = cleaned
+
+    return best_text, best_prefix_len
 
 
 def get_daily_note_path(vault_path: Path, date_obj: datetime) -> Path:
@@ -265,6 +350,8 @@ def sync_once(config_path: Path, state_file: Path) -> int:
 
     state = load_json(state_file)
     last_note_id = state.get("note_id", "")
+    last_synced_text = state.get("last_synced_text", "")
+    last_run_cleared_source = as_bool(state.get("source_cleared_after_sync", False), False)
     note_id, body_html = get_or_create_note_html(source_title, preferred_note_id=last_note_id)
     source_text = html_to_text(body_html)
     source_lines = [line.rstrip() for line in source_text.splitlines()]
@@ -272,6 +359,17 @@ def sync_once(config_path: Path, state_file: Path) -> int:
     if source_lines and source_lines[0].strip() == source_title:
         source_lines = source_lines[1:]
     source_text = "\n".join(source_lines).strip()
+    replayed_prefix_len = 0
+    if source_text and last_run_cleared_source:
+        replay_candidates: List[str] = []
+        if isinstance(last_synced_text, str) and last_synced_text.strip():
+            replay_candidates.append(last_synced_text.strip())
+        for archived_text in load_recent_archived_texts(DEFAULT_ARCHIVE_DIR):
+            if archived_text not in replay_candidates:
+                replay_candidates.append(archived_text)
+        source_text, replayed_prefix_len = strip_replayed_prefix(source_text, replay_candidates)
+        if replayed_prefix_len:
+            print(f"replayed memo prefix stripped -> {replayed_prefix_len} chars")
     last_source_text = state.get("last_source_text")
     delta = ""
 
@@ -314,13 +412,26 @@ def sync_once(config_path: Path, state_file: Path) -> int:
             delta = source_text.strip()
 
     if not delta:
+        source_cleared = False
+        if replayed_prefix_len and clear_source_after_sync:
+            try:
+                clear_note_body_by_id(note_id, source_title)
+                source_cleared = True
+                print(f"source note cleared -> {source_title}")
+            except Exception as e:
+                print(f"warning: source note clear failed: {e}")
+
+        source_still_cleared = source_cleared or (not source_text and last_run_cleared_source)
+        final_source_text = "" if source_still_cleared else source_text
         new_state = {
             "note_id": note_id,
-            "last_len": len(source_text),
-            "last_source_text": source_text,
+            "last_len": len(final_source_text),
+            "last_source_text": final_source_text,
+            "last_synced_text": last_synced_text,
             "truncate_reset_detected": reset_detected,
             "clear_source_after_sync": clear_source_after_sync,
-            "source_cleared_after_sync": False,
+            "replayed_prefix_stripped": bool(replayed_prefix_len),
+            "source_cleared_after_sync": source_still_cleared,
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "source_note_title": source_title,
         }
@@ -348,8 +459,10 @@ def sync_once(config_path: Path, state_file: Path) -> int:
         "note_id": note_id,
         "last_len": len(final_source_text),
         "last_source_text": final_source_text,
+        "last_synced_text": delta,
         "truncate_reset_detected": reset_detected,
         "clear_source_after_sync": clear_source_after_sync,
+        "replayed_prefix_stripped": bool(replayed_prefix_len),
         "source_cleared_after_sync": source_cleared,
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source_note_title": source_title,

@@ -5,6 +5,12 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+if [ "${HEALTH_TRACKER_ALLOW_LEGACY_SYNC_AUTO:-}" != "1" ]; then
+    echo "旧版 sync-auto 已停用。当前稳定方案请使用 com.health-tracker.garmin-guard 和 com.health-tracker.notes-sync。"
+    echo "如确需调试旧脚本，请显式设置 HEALTH_TRACKER_ALLOW_LEGACY_SYNC_AUTO=1。"
+    exit 2
+fi
+
 # 日志文件
 LOG_FILE="$SCRIPT_DIR/logs/sync-$(date +%Y%m%d).log"
 mkdir -p "$SCRIPT_DIR/logs"

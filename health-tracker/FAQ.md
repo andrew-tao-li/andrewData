@@ -7,7 +7,7 @@
 **A**: 主要成本是 Claude API 的使用费用。
 
 - **Claude API**: 按使用量付费
-  - Claude 3.5 Sonnet: 输入 $3/MTok，输出 $15/MTok
+  - Claude Sonnet 4.6: 输入 $3/MTok，输出 $15/MTok
   - 日常使用估算：每天解析1-2条笔记，约 $0.05-0.10
   - 每月大约：$1.5-3
 - **Google Sheets**: 免费（使用 Google Drive 配额）
@@ -132,7 +132,7 @@ curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: $CLAUDE_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
-  -d '{"model":"claude-3-5-sonnet-20241022","max_tokens":1024,"messages":[{"role":"user","content":"Hello"}]}'
+  -d '{"model":"claude-sonnet-5","max_tokens":1024,"messages":[{"role":"user","content":"Hello"}]}'
 
 # 检查配置
 python -c "import json; print(json.load(open('config/config.json'))['claude_api_key'])"

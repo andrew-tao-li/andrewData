@@ -1,19 +1,22 @@
 # Snapshot Registry
 
-Updated: 2026-03-17 20:15 CST
+Updated: 2026-07-29 13:25 CST
 
 ## Current recommended rollback point
-- Tag: `jit-20260317-201415-sync-window-update`
-- Commit: `d51f1cf9907116b3a12815d3a35c1fbbe2e10861`
-- Local backup dir: `backups/20260317-201415-jit-sync-window-update`
+- Tag: `jit-20260729-132547-automation-api-hardening`
+- Commit: resolve with `git rev-parse jit-20260729-132547-automation-api-hardening`
+- Local backup dir: `backups/20260729-132547-jit-automation-api-hardening`
 - Key features:
   - Garmin daily automation with guard window (12:00-16:00).
   - Success chain: Obsidian -> SQLite -> Google Sheets.
-  - Daily Obsidian analysis uses current-day record vs prior 7-day baseline.
-  - iPhone Notes -> Obsidian auto-sync in the evening (19:00, 20:00, 21:00).
+  - Daily Obsidian analysis uses local current-day vs prior 7-day baseline and no longer depends on OpenRouter/API availability.
+  - OpenRouter model config updated to current Sonnet with fallback models.
+  - SQLite exercise writes are deduplicated to tolerate automatic retries and manual reruns.
+  - iPhone Notes -> Obsidian auto-sync in the evening (19:00, 20:00, 21:00, 22:00, 23:00).
   - Notes sync stops after the first successful write of the day.
   - Notes content is archived locally before source note clearing.
-  - Garmin and Notes automation files are tracked in Git.
+  - Legacy scheduler/sync-auto paths are blocked by default to avoid re-enabling old behavior.
+  - Current automation source of truth documented in `CURRENT_AUTOMATION_STATUS.md`.
 
 ## Snapshot list
 1. `backup-20260306-1208`
@@ -74,6 +77,39 @@ Updated: 2026-03-17 20:15 CST
   - Notes sync window adjusted to 19:00, 20:00, 21:00.
   - Notes sync now creates a daily success marker after the first actual sync.
   - Installer docs and launchd plists updated to match the new schedule.
+
+9. `jit-20260317-203916-registry-aligned`
+- Commit: `07e1922e48cc4b80f6ec66f5c5567111663a09a5`
+- Backup dir: `backups/20260317-203916-jit-registry-aligned`
+- Stable milestone:
+  - Registry alignment snapshot after the sync-window update.
+  - Preserved the rollback inventory and local bundle path references.
+
+10. `jit-20260318-131704-garmin-partial-write-fix`
+- Commit: `d1fabdb627cbf4fd525d0685580f1d5595ada3da`
+- Backup dir: `backups/20260318-131704-jit-garmin-partial-write-fix`
+- Stable milestone:
+  - Prevented incomplete Garmin data from overwriting already-good logs.
+  - Hardened Garmin parsing against partial sleep/HRV responses.
+  - Added tests around Garmin partial-write behavior.
+
+11. `jit-20260318-192604-notes-title-stable`
+- Commit: `ff2057523517f793a65545f8d69e4c8e2d547e4b`
+- Backup dir: `backups/20260318-192604-jit-notes-title-stable`
+- Stable milestone:
+  - Kept the source iPhone/macOS Notes title stable as `晨间备忘录`.
+  - Continued clearing note content after successful Obsidian write without deleting/renaming the note.
+
+12. `jit-20260729-132547-automation-api-hardening`
+- Commit: resolve with `git rev-parse jit-20260729-132547-automation-api-hardening`
+- Backup dir: `backups/20260729-132547-jit-automation-api-hardening`
+- Stable milestone:
+  - Consolidated the working July 2026 automation state before further changes.
+  - Updated OpenRouter/Claude model defaults and added fallback model handling.
+  - Removed OpenRouter dependency from the Garmin daily 7-day brief path.
+  - Added SQLite exercise deduplication for retry/manual rerun safety.
+  - Added hard stops for legacy scheduler and sync-auto paths.
+  - Added `CURRENT_AUTOMATION_STATUS.md` as the current automation reference.
 
 ## Rollback commands
 

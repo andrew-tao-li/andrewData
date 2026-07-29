@@ -6,6 +6,7 @@ Garmin 定时同步调度器
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any
@@ -58,6 +59,12 @@ class GarminScheduler:
         Args:
             config_path: 配置文件路径
         """
+        if os.environ.get("HEALTH_TRACKER_ALLOW_LEGACY_SCHEDULER") != "1":
+            raise RuntimeError(
+                "旧版 GarminScheduler 已停用。请使用 com.health-tracker.garmin-guard "
+                "和手动命令: python3 -m cli garmin-sync --date today"
+            )
+
         self.config_path = config_path
         self.config = self._load_config()
 
@@ -114,13 +121,14 @@ class GarminScheduler:
         if use_openrouter:
             return HealthDataExtractor(
                 api_key=self.config['openrouter_api_key'],
-                model=self.config.get('openrouter_model', 'anthropic/claude-3.5-sonnet'),
-                use_openrouter=True
+                model=self.config.get('openrouter_model', 'anthropic/claude-sonnet-5'),
+                use_openrouter=True,
+                fallback_models=self.config.get('openrouter_fallback_models', [])
             )
         else:
             return HealthDataExtractor(
                 api_key=self.config['claude_api_key'],
-                model=self.config.get('claude_model', 'claude-3-5-sonnet-20241022'),
+                model=self.config.get('claude_model', 'claude-sonnet-5'),
                 use_openrouter=False
             )
 
@@ -326,7 +334,7 @@ class GarminScheduler:
         Returns:
             是否继续重试
         """
-        retry_hours = self.config.get('garmin_retry_hours', [13, 14, 15, 16, 17, 18])
+        retry_hours = self.config.get('garmin_retry_hours', [13, 14, 15, 16])
         current_hour = datetime.now().hour
 
         if retry_count < len(retry_hours):

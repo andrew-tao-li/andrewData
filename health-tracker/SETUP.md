@@ -39,7 +39,7 @@ cp config/config.example.json config/config.json
   "obsidian_vault_path": "/path/to/your/obsidian/vault",
   "obsidian_health_folder": "Health",
   "database_path": "health_data.db",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 

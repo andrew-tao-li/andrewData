@@ -123,11 +123,11 @@ notepad config\config.json
 {
   "use_openrouter": true,
   "openrouter_api_key": "sk-or-你的密钥",
-  "openrouter_model": "anthropic/claude-3.5-sonnet",
+  "openrouter_model": "anthropic/claude-sonnet-5",
   "obsidian_vault_path": "/Users/你的用户名/Documents/Obsidian/MyVault",
   "obsidian_health_folder": "Health",
   "database_path": "health_data.db",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 

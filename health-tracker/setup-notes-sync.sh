@@ -48,7 +48,7 @@ else
 fi
 
 echo ""
-echo "Schedule: 19:00, 20:00 and 21:00 daily."
+echo "Schedule: 19:00, 20:00, 21:00, 22:00 and 23:00 daily."
 echo "Source note title: $(/usr/bin/python3 - <<'PY'
 import json
 from pathlib import Path

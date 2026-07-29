@@ -44,6 +44,18 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
+if [ "${HEALTH_TRACKER_ALLOW_LEGACY_SCHEDULER:-}" != "1" ]; then
+    echo -e "${RED}✗${NC} 已阻止：这是旧版 scheduler 安装脚本，会重新启用过时的常驻同步逻辑。"
+    echo ""
+    echo "当前稳定方案："
+    echo "  • Garmin: com.health-tracker.garmin-guard（12:00, 13:00, 14:00, 15:00, 16:00）"
+    echo "  • 晨间备忘录: com.health-tracker.notes-sync（19:00, 20:00, 21:00, 22:00, 23:00）"
+    echo ""
+    echo "如确需调试旧 scheduler，请显式设置："
+    echo "  HEALTH_TRACKER_ALLOW_LEGACY_SCHEDULER=1 ./setup-and-verify-automation.sh"
+    exit 2
+fi
+
 # ========================================
 # 步骤 1: 检查环境
 # ========================================

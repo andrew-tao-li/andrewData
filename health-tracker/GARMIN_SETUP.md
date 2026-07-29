@@ -1,5 +1,9 @@
 # Garmin 集成配置指南
 
+> 2026-07-29 更新：当前日常自动化以 `CURRENT_AUTOMATION_STATUS.md` 为准。
+> Garmin 自动同步应使用 `com.health-tracker.garmin-guard`，不要重新启用旧
+> `com.health-tracker.scheduler`。
+
 本指南将帮助你配置 Garmin 健康数据自动同步功能。
 
 ## 📋 前置要求
@@ -38,7 +42,7 @@ pip install -r requirements.txt
   "garmin_password": "your-garmin-password",
   "garmin_is_china": true,
   "garmin_sync_time": "12:00",
-  "garmin_retry_hours": [13, 14, 15, 16, 17, 18],
+  "garmin_retry_hours": [13, 14, 15, 16],
   "garmin_required_fields": ["sleep_duration", "hrv"],
 
   "create_daily_note_if_missing": true,

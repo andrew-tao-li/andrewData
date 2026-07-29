@@ -213,7 +213,7 @@ content = [
 
 # 调用 Claude API
 response = client.messages.create(
-    model="claude-3-5-sonnet-20241022",  # 或 OpenRouter
+    model="claude-sonnet-5",  # 或 OpenRouter
     max_tokens=4096,
     messages=[{
         "role": "user",

@@ -107,7 +107,7 @@ vim config/config.json
   "obsidian_vault_path": "/Users/你的用户名/Documents/Obsidian/MyVault",
   "obsidian_health_folder": "Health",
   "database_path": "health_data.db",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 
@@ -261,7 +261,7 @@ code config\config.json
   "obsidian_vault_path": "C:\\Users\\你的用户名\\Documents\\Obsidian\\MyVault",
   "obsidian_health_folder": "Health",
   "database_path": "health_data.db",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 
@@ -416,7 +416,7 @@ nano config/config.json  # 或使用 vim, gedit 等
   "obsidian_vault_path": "/home/你的用户名/Documents/Obsidian/MyVault",
   "obsidian_health_folder": "Health",
   "database_path": "health_data.db",
-  "claude_model": "claude-3-5-sonnet-20241022"
+  "claude_model": "claude-sonnet-5"
 }
 ```
 

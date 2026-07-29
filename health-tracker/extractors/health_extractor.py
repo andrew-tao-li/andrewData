@@ -23,8 +23,9 @@ class HealthDataExtractor:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-5-sonnet-20241022",
-        use_openrouter: bool = False
+        model: str = "claude-sonnet-5",
+        use_openrouter: bool = False,
+        fallback_models: Optional[List[str]] = None
     ):
         """
         初始化提取器
@@ -33,9 +34,11 @@ class HealthDataExtractor:
             api_key: API密钥（Anthropic 或 OpenRouter）
             model: 使用的模型名称
             use_openrouter: 是否使用 OpenRouter
+            fallback_models: OpenRouter 主模型失败后的备用模型列表
         """
         self.use_openrouter = use_openrouter
         self.model = model
+        self.fallback_models = fallback_models or []
         self.anthropic_client = None
         self.openai_client = None
 
@@ -54,21 +57,68 @@ class HealthDataExtractor:
                 }
             )
 
-            # OpenRouter 使用不同的模型名称格式
-            # 如果模型名不包含提供商前缀，自动添加
-            if not model.startswith("anthropic/"):
-                # 转换标准 Anthropic 模型名到 OpenRouter 格式
-                model_map = {
-                    "claude-3-5-sonnet-20241022": "anthropic/claude-3.5-sonnet",
-                    "claude-3-opus-20240229": "anthropic/claude-3-opus",
-                    "claude-3-haiku-20240307": "anthropic/claude-3-haiku",
-                }
-                self.model = model_map.get(model, f"anthropic/{model}")
-            print(f"Using OpenRouter with model: {self.model}")
+            self.model = self._normalize_openrouter_model(model)
+            self.openrouter_models = self._build_openrouter_model_chain(
+                self.model,
+                self.fallback_models
+            )
+            print(f"Using OpenRouter with models: {', '.join(self.openrouter_models)}")
         else:
             # 使用原生 Anthropic API
             self.anthropic_client = Anthropic(api_key=api_key)
             print(f"Using Anthropic API with model: {self.model}")
+
+    @staticmethod
+    def _normalize_openrouter_model(model: str) -> str:
+        """将常见 Anthropic 模型名归一成 OpenRouter slug。"""
+        if "/" in model:
+            return model
+
+        model_map = {
+            "claude-sonnet-5": "anthropic/claude-sonnet-5",
+            "claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
+            "claude-sonnet-4.5": "anthropic/claude-sonnet-4.5",
+            "claude-3-5-sonnet-20241022": "anthropic/claude-sonnet-4.6",
+            "claude-3-opus-20240229": "anthropic/claude-3-opus",
+            "claude-3-haiku-20240307": "anthropic/claude-3-haiku",
+        }
+        return model_map.get(model, f"anthropic/{model}")
+
+    def _build_openrouter_model_chain(
+        self,
+        primary_model: str,
+        fallback_models: List[str]
+    ) -> List[str]:
+        """生成去重后的 OpenRouter 模型尝试顺序。"""
+        models = [primary_model]
+        models.extend(self._normalize_openrouter_model(model) for model in fallback_models)
+
+        result = []
+        seen = set()
+        for model in models:
+            if model and model not in seen:
+                result.append(model)
+                seen.add(model)
+        return result
+
+    def _call_openrouter_chat(self, messages: List[Dict[str, Any]], max_tokens: int = 4096) -> str:
+        """按主模型、备用模型顺序调用 OpenRouter，全部失败才抛错。"""
+        errors = []
+        for model in self.openrouter_models:
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=messages
+                )
+                if model != self.model:
+                    print(f"OpenRouter fallback succeeded with model: {model}")
+                return response.choices[0].message.content
+            except Exception as e:
+                errors.append(f"{model}: {e}")
+                print(f"OpenRouter model failed ({model}): {e}")
+
+        raise RuntimeError("All OpenRouter models failed: " + " | ".join(errors))
 
     def extract_from_note(
         self,
@@ -164,18 +214,10 @@ class HealthDataExtractor:
                     content_parts.append(image_content)
 
         try:
-            # 调用 OpenRouter (OpenAI SDK)
-            response = self.openai_client.chat.completions.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{
-                    "role": "user",
-                    "content": content_parts if len(content_parts) > 1 else prompt
-                }]
-            )
-
-            # 解析响应
-            result_text = response.choices[0].message.content
+            result_text = self._call_openrouter_chat([{
+                "role": "user",
+                "content": content_parts if len(content_parts) > 1 else prompt
+            }])
             extracted_data = self._parse_claude_response(result_text)
 
             # 添加元数据
@@ -571,16 +613,10 @@ class HealthDataExtractor:
 
         try:
             if self.use_openrouter:
-                # 使用 OpenRouter (OpenAI SDK)
-                response = self.openai_client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                )
-                return response.choices[0].message.content
+                return self._call_openrouter_chat([{
+                    "role": "user",
+                    "content": prompt
+                }])
             else:
                 # 使用 Anthropic SDK
                 response = self.anthropic_client.messages.create(
@@ -716,16 +752,10 @@ class HealthDataExtractor:
 
         try:
             if self.use_openrouter:
-                # 使用 OpenRouter (OpenAI SDK)
-                response = self.openai_client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                )
-                code = response.choices[0].message.content
+                code = self._call_openrouter_chat([{
+                    "role": "user",
+                    "content": prompt
+                }])
             else:
                 # 使用 Anthropic SDK
                 response = self.anthropic_client.messages.create(

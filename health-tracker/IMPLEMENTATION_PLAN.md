@@ -128,7 +128,7 @@ APScheduler>=3.10.0
   "garmin_email": "your-garmin-email@example.com",
   "garmin_password": "your-garmin-password",
   "garmin_sync_time": "12:00",
-  "garmin_retry_hours": [13, 14, 15, 16, 17, 18],
+  "garmin_retry_hours": [13, 14, 15, 16],
   "garmin_required_fields": ["sleep_duration", "hrv"],
 
   "_comment_obsidian_write": "Obsidian 写入配置",

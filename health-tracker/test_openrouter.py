@@ -52,7 +52,7 @@ def test_openrouter():
             return False
 
         api_key = config['claude_api_key']
-        model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        model = config.get('claude_model', 'claude-sonnet-5')
         base_url = None
         service_name = "Anthropic API"
 
@@ -65,7 +65,7 @@ def test_openrouter():
             return False
 
         api_key = config['openrouter_api_key']
-        model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
+        model = config.get('openrouter_model', 'anthropic/claude-sonnet-5')
         base_url = "https://openrouter.ai/api/v1"
         service_name = "OpenRouter"
 
@@ -145,7 +145,9 @@ def test_openrouter():
         print("  4. API 余额不足")
         print()
         print("OpenRouter 模型名称格式:")
-        print("  - anthropic/claude-3.5-sonnet")
+        print("  - anthropic/claude-sonnet-5")
+        print("  - anthropic/claude-sonnet-4.6")
+        print("  - anthropic/claude-sonnet-4.5")
         print("  - anthropic/claude-3-opus")
         print("  - anthropic/claude-3-haiku")
         print()
@@ -181,15 +183,17 @@ def test_extraction():
 
     if use_openrouter:
         api_key = config['openrouter_api_key']
-        model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
+        model = config.get('openrouter_model', 'anthropic/claude-sonnet-5')
+        fallback_models = config.get('openrouter_fallback_models', [])
         extractor = HealthDataExtractor(
             api_key=api_key,
             model=model,
-            use_openrouter=True
+            use_openrouter=True,
+            fallback_models=fallback_models
         )
     else:
         api_key = config['claude_api_key']
-        model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        model = config.get('claude_model', 'claude-sonnet-5')
         extractor = HealthDataExtractor(
             api_key=api_key,
             model=model,

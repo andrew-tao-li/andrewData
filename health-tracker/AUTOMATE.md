@@ -1,5 +1,9 @@
 # 自动定时同步配置指南
 
+> 2026-07-29 更新：本文档是旧版 `sync-auto` 说明，已不作为当前日常自动化依据。
+> 当前稳定方案以 `CURRENT_AUTOMATION_STATUS.md` 为准。不要重新加载
+> `com.health-tracker.sync` 或 `com.health-tracker.scheduler`。
+
 ## 概述
 
 设置每天自动执行 `parse + push`，无需手动操作。

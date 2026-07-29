@@ -77,13 +77,17 @@ def create_extractor(config: dict) -> HealthDataExtractor:
             console.print("[red]错误: 配置了 use_openrouter 但缺少 openrouter_api_key[/red]")
             sys.exit(1)
 
-        model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
+        model = config.get('openrouter_model', 'anthropic/claude-sonnet-5')
+        fallback_models = config.get('openrouter_fallback_models', [])
+        if isinstance(fallback_models, str):
+            fallback_models = [m.strip() for m in fallback_models.split(',') if m.strip()]
         console.print(f"[cyan]使用 OpenRouter API[/cyan]")
 
         return HealthDataExtractor(
             api_key=api_key,
             model=model,
-            use_openrouter=True
+            use_openrouter=True,
+            fallback_models=fallback_models
         )
     else:
         # 使用原生 Anthropic API
@@ -92,7 +96,7 @@ def create_extractor(config: dict) -> HealthDataExtractor:
             console.print("[red]错误: 缺少 claude_api_key 配置[/red]")
             sys.exit(1)
 
-        model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        model = config.get('claude_model', 'claude-sonnet-5')
         console.print(f"[cyan]使用 Anthropic API[/cyan]")
 
         return HealthDataExtractor(
@@ -771,18 +775,18 @@ def garmin_sync(date: str, force: bool):
             console.print("[red]✗ Obsidian 健康日志写入失败[/red]")
             return
 
-        # 生成分析
-        extractor = create_extractor(config)
-        analyzer = HealthAnalyzer(db, extractor)
-
-        brief_analysis = analyzer.generate_brief_summary(
-            days=7,
-            reference_date=date_obj,
-            current_record=analysis_record
-        )
-        if not obsidian.append_analysis(date_obj, brief_analysis):
-            console.print("[red]✗ Obsidian 健康分析写入失败[/red]")
-            return
+        # 生成本地 7 天分析；不依赖 AI/API，避免模型故障阻断后续写库。
+        try:
+            analyzer = HealthAnalyzer(db)
+            brief_analysis = analyzer.generate_brief_summary(
+                days=7,
+                reference_date=date_obj,
+                current_record=analysis_record
+            )
+            if not obsidian.append_analysis(date_obj, brief_analysis):
+                console.print("[yellow]⚠️  Obsidian 健康分析写入失败，继续保存本地数据库和 Google Sheets[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️  生成健康分析失败，继续保存本地数据库和 Google Sheets: {e}[/yellow]")
 
         # 保存到本地数据库（优先级在 Obsidian 之后）
         if not db.save_health_record(health_record):
@@ -803,6 +807,7 @@ def garmin_sync(date: str, force: bool):
                     'duration': duration,
                     'distance': activity.get('distance'),
                     'calories': activity.get('calories'),
+                    'notes': activity.get('activity_name'),
                 }
                 db.save_exercise(exercise_data)
 

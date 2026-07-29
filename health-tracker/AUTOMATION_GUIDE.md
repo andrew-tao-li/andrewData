@@ -1,5 +1,10 @@
 # 自动化系统使用指南
 
+> 2026-07-29 更新：本文档保留历史说明。当前稳定方案以
+> `CURRENT_AUTOMATION_STATUS.md` 为准。不要再用 `setup-scheduler.sh`
+> 或 `com.health-tracker.scheduler` 作为日常自动化；请使用
+> `com.health-tracker.garmin-guard` 和 `com.health-tracker.notes-sync`。
+
 ## 🎯 自动化功能概览
 
 Health Tracker 提供了完整的自动化健康数据管理系统，包括：
@@ -150,7 +155,7 @@ rm ~/Library/LaunchAgents/com.health-tracker.scheduler.plist
 ```json
 {
   "garmin_sync_time": "12:00",              // 每日同步时间
-  "garmin_retry_hours": [13, 14, 15, 16, 17, 18],  // 重试时间
+  "garmin_retry_hours": [13, 14, 15, 16],  // 重试时间
   "garmin_required_fields": ["sleep_duration", "hrv"],  // 必需字段
   "analysis_folder": "Health/分析",          // 报告保存位置
   "create_daily_note_if_missing": true      // 自动创建日记

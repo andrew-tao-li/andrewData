@@ -3,13 +3,18 @@
 
   "_comment_anthropic": "方式 1: 使用 Anthropic 官方 API（默认）",
   "claude_api_key": "your-claude-api-key-here",
-  "claude_model": "claude-3-5-sonnet-20241022",
+  "claude_model": "claude-sonnet-5",
 
   "_comment_openrouter": "方式 2: 使用 OpenRouter（如果你有 OpenRouter 账号）",
   "_comment_openrouter_usage": "设置 use_openrouter: true 并填写下面的配置",
   "use_openrouter": false,
   "openrouter_api_key": "sk-or-your-openrouter-key",
-  "openrouter_model": "anthropic/claude-3.5-sonnet",
+  "openrouter_model": "anthropic/claude-sonnet-5",
+  "openrouter_fallback_models": [
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-sonnet-4.5"
+  ],
+  "_comment_openrouter_fallback": "OpenRouter 主模型失败时按顺序尝试备用模型；Garmin 自动同步的7天简析不依赖此配置",
 
   "_comment_obsidian": "Obsidian 配置",
   "obsidian_vault_path": "/path/to/your/obsidian/vault",
@@ -29,7 +34,7 @@
   "garmin_password": "your-garmin-password",
   "garmin_is_china": true,
   "garmin_sync_time": "12:00",
-  "garmin_retry_hours": [13, 14, 15, 16, 17, 18],
+  "garmin_retry_hours": [13, 14, 15, 16],
   "garmin_required_fields": ["sleep_duration", "hrv"],
 
   "_comment_obsidian_write": "Obsidian 写入配置",

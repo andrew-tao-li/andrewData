@@ -76,11 +76,17 @@ def main():
     use_openrouter = config.get('use_openrouter', False)
     if use_openrouter:
         api_key = config['openrouter_api_key']
-        model = config.get('openrouter_model', 'anthropic/claude-3.5-sonnet')
-        extractor = HealthDataExtractor(api_key=api_key, model=model, use_openrouter=True)
+        model = config.get('openrouter_model', 'anthropic/claude-sonnet-5')
+        fallback_models = config.get('openrouter_fallback_models', [])
+        extractor = HealthDataExtractor(
+            api_key=api_key,
+            model=model,
+            use_openrouter=True,
+            fallback_models=fallback_models
+        )
     else:
         api_key = config['claude_api_key']
-        model = config.get('claude_model', 'claude-3-5-sonnet-20241022')
+        model = config.get('claude_model', 'claude-sonnet-5')
         extractor = HealthDataExtractor(api_key=api_key, model=model, use_openrouter=False)
 
     # 提取数据
